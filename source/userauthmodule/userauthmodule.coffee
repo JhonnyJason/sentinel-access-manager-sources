@@ -13,6 +13,7 @@ export initialize = ->
 ############################################################
 export userLoginAuth = (req, ctx) ->
     log "userLoginAuth"
+    olog ctx
     return
 
 export onLoginSuccess = (args) ->
@@ -20,9 +21,10 @@ export onLoginSuccess = (args) ->
     olog args
     # here we are authenticated already :)!
     # TODO set AccessToken and answer 
-    authCode = ""
+    authCode = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
     validUntil = Date.now()
-    return { authCode, validUntil}
+    result = { authCode, validUntil }
+    return result
 
 ############################################################
 export passwordReset = (args) ->
@@ -36,3 +38,7 @@ export register = (args) ->
     log "register"
     olog args
     return
+
+
+export getPasswordHash = (input) ->
+    return "afafafafaffaffafafafafafaffaffafafafafafaffaffafafafafafaffaffaf"

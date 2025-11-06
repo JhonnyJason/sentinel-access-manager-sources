@@ -7,13 +7,14 @@ import { createLogFunctions } from "thingy-debug"
 ############################################################
 import {
     STRING, STRINGEMAIL, STRINGHEX64, STRINGHEX32, NUMBER, 
-    ARRAY, BOOLEAN 
-} from "./schemamodule.js"
+    ARRAY, BOOLEAN, STRINGCLEAN, STRINGHEX, NUMBERORNULL,
+    STRINGEMAILORNOTHING, NUMBERORNOTHING, BOOLEANORNOTHING 
+} from "thingy-schema-validate"
 
 ############################################################
-import { 
+import {
     userLoginAuth, onLoginSuccess, register, 
-    passwordReset 
+    passwordReset, getPasswordHash 
 } from "./userauthmodule.js"
 
 import { signatureAuth, addServerSignature } from "./adminauthmodule.js"
@@ -43,15 +44,15 @@ echo = (echo) -> echo
 sciAdd("echo", echo, {
     bodySizeLimit: 100_000, # body larger than ~100kb will cause a 400 return 
     argsSchema: STRING,
-    resultSchema: { echo: STRING }    
+    resultSchema: STRING
 })
 
 ############################################################
-ping = -> return { message: "pong" }
+ping = -> return "pong"
 ############################################################
 sciAdd("ping", ping, {
     bodySizeLimit: 0, # any body will cause a 400 return
-    resultSchema: { message: STRING }
+    resultSchema: STRINGCLEAN
 })
 
 ############################################################
@@ -87,9 +88,7 @@ sciAdd("register", register, {
 ############################################################
 sciAdd("requestPasswordReset", passwordReset, {
     bodySizeLimit: 267
-    argsSchema: { # 1
-        email: STRINGEMAIL # 9 + 256 -> 266
-    } # 1 -> 267
+    argsSchema: { email: STRINGEMAIL }
 })
 # always 204 - no expected errors :-)
 
@@ -103,6 +102,7 @@ sciAdd("requestPasswordReset", passwordReset, {
 getUserList = -> 
     log "getUserList"
     return uData.getUserList()
+
 ############################################################ 
 sciAdd("getUserList", uData.getUserList, {
     bodySizeLimit: 568, 
@@ -116,25 +116,26 @@ sciAdd("getUserList", uData.getUserList, {
 getUserData = (userId) ->
     log "getUserData"
     user = uData.getUserData(userId)
+    olog  { user }
     if !user? then return "User does not exist!"
     return {
         userId: userId
         email: user.email
-        subscribedUntil: user.subscribedUntil
-        isTester: user.isTester
-        lastInteraction: user.lastInteraction
+        subscribedUntil: user.subscribedUntil || null
+        isTester: user.isTester || false
+        lastInteraction: user.lastInteraction || null
     }
 ############################################################
-sciAdd("getUser", uData.getUserData, {
+sciAdd("getUser", getUserData, {
     bodySizeLimit: 600, 
     authOption: signatureAuth,
-    argsSchema: STRINGHEX32 
+    argsSchema: STRINGHEX 
     resultSchema: {
-        userId: STRINGHEX32,
+        userId: STRINGHEX,
         email: STRINGEMAIL, 
-        subscribedUntil: NUMBER,
+        subscribedUntil: NUMBERORNULL,
         isTester: BOOLEAN,
-        lastInteraction: NUMBER
+        lastInteraction: NUMBERORNULL
     }
     responseAuth: addServerSignature
 })
@@ -151,15 +152,16 @@ updateUser = (args) ->
     user.isTester = args.isTester
     uData.setUserData(args.userId, user)
     return
+
 ############################################################
 sciAdd("updateUser", updateUser, {
     bodySizeLimit: 1_024,  
     authOption: signatureAuth,
     argsSchema: {
         userId: STRINGHEX32,
-        email: STRINGEMAIL, 
-        subscribedUntil: NUMBER,
-        isTester: BOOLEAN
+        email: STRINGEMAILORNOTHING, 
+        subscribedUntil: NUMBERORNOTHING,
+        isTester: BOOLEANORNOTHING
     }
 })
 # Response is either 204 or '422 "User does not exist!"'
@@ -175,6 +177,7 @@ createUser = (args) ->
     user.passwordSHSH = await getPasswordHash(args.passwordSH)
     userId = uData.addNewUser(user)
     return userId
+
 ############################################################
 sciAdd("createUser", createUser, {
     bodySizeLimit: 1_220,
@@ -182,8 +185,8 @@ sciAdd("createUser", createUser, {
     argsSchema: { 
         email: STRINGEMAIL, 
         passwordSH: STRINGHEX64
-        subscribedUntil: NUMBER, 
-        isTesterAccount: BOOLEAN 
+        subscribedUntil: NUMBERORNOTHING, 
+        isTesterAccount: BOOLEANORNOTHING 
     }
     resultSchema: STRINGHEX32
     responseAuth: addServerSignature
@@ -200,7 +203,7 @@ deleteUser = (userId) ->
 sciAdd("deleteUser", deleteUser, {
     bodySizeLimit: 500 
     authOption: signatureAuth
-    argsSchema: STRINGHEX32
+    argsSchema: STRINGHEX
 })
 # Response is always 204 
 

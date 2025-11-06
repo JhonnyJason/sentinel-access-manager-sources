@@ -11,10 +11,10 @@ import fs from "node:fs"
 import crypto from "node:crypto"
 
 ############################################################
+import { createValidator, NONNULLOBJECT } from "thingy-schema-validate"
+
+############################################################
 import { getRegistry, freeRegistry } from "./sciregistrymodule.js"
-import { 
-    createValidationFunction, createStringifyFunction, NONNULLOBJECT 
-} from "./schemamodule.js"
 
 #endregion
 
@@ -140,7 +140,7 @@ mainRequestHandler = (req, res) ->
     if !info? then return respondWith404(res)
 
     bodySizeLimit = info.bodySizeLimit || globalBodySizeLimit
-    cLength = req.headers['content-length'] || 0
+    cLength = parseInt(req.headers['content-length']) || 0
     cType = req.headers['content-type']
     isJson = (cType == "application/json")
 
@@ -178,6 +178,7 @@ mainRequestHandler = (req, res) ->
         log "dataRead"
         bodyLength += d.length
         if bodyLength > bodySizeLimit or bodyLength > cLength
+            olog { bodyLength, bodySizeLimit, cLength }
             respondWith413(res)
             return req.destroy() # prevent further data read
         bodyChunks.push(d)
@@ -185,7 +186,9 @@ mainRequestHandler = (req, res) ->
     req.on('data', dataRead)
     
     handleBodyAndProcessRequest = ->
+        log 'dataStreamEnd'
         if bodyLength != cLength
+            olog { bodyLength,cLength }
             respondWith413(res)
             return req.destroy() # prevent further data read
 
@@ -202,17 +205,27 @@ mainRequestHandler = (req, res) ->
 ############################################################
 processRequest = (req, res, info, ctx) ->
     log "processRequest"
-    if ctx.bodyObj?
+
+    if ctx.bodyObj == undefined
+        ## no body object -> we only have the body string
+        ctx.auth = ctx.bodyString
+        ctx.args = ctx.bodyString
+    else if ctx.bodyObj == null
+        ## can also be the null object -> prevent reading null.auth^^
+        ctx.auth = null
+        ctx.args = null
+    else ## might have separated args and auth
         auth = ctx.bodyObj.auth
         args = ctx.bodyObj.args
-    
-    if auth? or args?
-        ctx.auth = auth
-        ctx.args = args
-    else
-        ctx.auth = ctx.bodyObj
-        ctx.args = ctx.bodyObj
 
+        if auth == undefined and args == undefined
+            ctx.auth = ctx.bodyObj
+            ctx.args = ctx.bodyObj
+        else
+            ctx.auth = auth
+            ctx.args = args
+    
+    ## All ready :-) handle it!
     try await info.handler(req, res, ctx)
     catch err then respondWith500(res, err)
     return
@@ -227,26 +240,28 @@ clientErrorHandler = (err, socket) ->
 
 ############################################################
 setupHTTPServer = (o) ->
-    o = {} unless o?
+    log "setupHTTPServer"
+    o = {} unless o? and typeof o == "object"
+    log "0"
     globalBodySizeLimit = o.bodySizeLimit || defaultBodySizeLimit
-    
+    log "1"
     requestTimeout = o.requestTimeout || defaultRequestTimeout
     headersTimeout = o.headersTimeout || defaultHeadersTimeout
     keepAliveTimeout = o.keepAliveTimeout || defaultKeepAliveTimeout
     maxHeadersCount = o.maxHeadersCount || defaultMaxHeadersCount
     maxHeaderSize = o.maxHeaderSize || defaultMaxHeaderSize
-
+    log "2"
     httpOptions = {
         headersTimeout, 
         maxHeaderSize,
         requestTimeout, 
         keepAliveTimeout   
     }
-
+    log "3"
     serverObj = http.createServer(httpOptions)
     serverObj.on("request", mainRequestHandler)
     serverObj.on("clientError", clientErrorHandler)
-
+    log "4"
     ## TODO decide what to listen on :-)
     serverObj.listen(3333)    
     log "Server listening!"
@@ -259,36 +274,46 @@ export prepareAndExpose = ->
     # sciBase.prepareAndExpose(null, routes)
 
     # fakeRegistry = {}
-    # fakeRegistry["/getP"] = { func:() -> log "get", conf:{}}
-    # routeInfoMap = compileRoutes(fakeRegistry)
+    # fakeRegistry["/getP"] = { func:(() -> log "getP"), conf:{}}
+    # routeEntries = compileRoutes(fakeRegistry)
+    # # log "compiling finished!"
+    # routeInfoMap[re[0]] = re[1] for re in routeEntries
+    # olog routeInfoMap
 
-    # routes = compileRoutes(getRegistry())
-    # freeRegistry() 
+    realRegistry = getRegistry()
+    olog realRegistry
+    routeEntries = compileRoutes(realRegistry)
+    freeRegistry() 
+    routeInfoMap[re[0]] = re[1] for re in routeEntries
+    olog routeInfoMap
 
-    # options = { }
+    options = { }
 
-    # setupHTTPServer(options)
+    setupHTTPServer(options)
     return
 
 
 ############################################################
 compileRoutes = (sciRegistry) ->
-    log "compileRoutes"
+    # log "compileRoutes"
     return unless sciRegistry? and typeof sciRegistry == "object"
 
     keys = Object.keys(sciRegistry)
-    log keys
+    # log keys
     routes = []
     routes.push(...compile(k, sciRegistry[k])) for k in keys
     return routes
 
 compile = (route, sciObj) ->
+    log "compile #{route}"
+    olog sciObj    
     if route[0] == "/" then route = route.slice(1)
 
     f = sciObj.func
     c = sciObj.conf
     if !(typeof f  == "function") then throw new Error("No func for '#{route}'!")
     if !(typeof c == "object") or !c? then throw new Error("No conf for '#{route}'!")
+    
 
     postRoute = "P/#{route}"
     getRoute = null    
@@ -299,7 +324,7 @@ compile = (route, sciObj) ->
             getRoute = "G/"
             getRoute += route.slice(3,4).toLowerCase()
             getRoute += route.slice(4)
-    
+
     # aO = authOption -> "1xxx"
     if c.authOption? then aO = "1"
     else  aO = "0"
@@ -317,12 +342,13 @@ compile = (route, sciObj) ->
     else  rA = "0"
 
     handlerCreatorKey = "#{aO}#{aS}#{rS}#{rA}"
+    log "handlerType: #{handlerCreatorKey}"
     handlerFunction = handlerCreators[handlerCreatorKey](route, f, c)
 
     olog { postRoute, getRoute }
-    olog c
+    # olog c
 
-    routeInfo = { 
+    routeInfo = {
         handler: handlerFunction 
         bodySizeLimit: c.bodySizeLimit
     }
@@ -337,162 +363,196 @@ compile = (route, sciObj) ->
 
 
 ############################################################
-# allImplementations = (route, func, conf) ->
-#     ## authOption is provided
-#     authenticateRequest = conf.authOption
-#     if typeof authenticateRequest != "function" 
-#         throw new Error("authOption not a function @#{route}!")
+allImplementations = (route, func, conf) ->
+    ## authOption is provided
+    authenticateRequest = conf.authOption
+    if typeof authenticateRequest != "function" 
+        throw new Error("authOption not a function @#{route}!")
 
-#     ## argsSchema is provided
-#     validateArgs = createValidationFunction(conf.argsSchema)
-#     if typeof validateArgs != "function"
-#         throw new Error("validateArgs is not a function @#{route}!")
+    ## argsSchema is provided
+    validateArgs = createValidator(conf.argsSchema)
+    if typeof validateArgs != "function"
+        throw new Error("validateArgs is not a function @#{route}!")
 
-#     ## resultSchema is provided
-#     validateResult = createValidationFunction(conf.resultSchema)
-#     if typeof validateResult != "function"
-#         throw new Error("validateResult is not a function @#{route}!")
+    ## resultSchema is provided
+    validateResult = createValidator(conf.resultSchema)
+    if typeof validateResult != "function"
+        throw new Error("validateResult is not a function @#{route}!")
 
-#     stringifyResult = createStringifyFunction(conf.resultSchema)
-#     if typeof stringifyResult != "function"
-#         throw new Error("stringifyResult is not a function @#{route}!")
+    checkForValidErrorObject =  createValidator(errorResultObjectSchema)
+    if typeof checkForValidErrorObject != "function"
+        throw new Error("checkForValidErrorObject is not a function @#{route}!")
 
-#     checkForValidErrorObject =  createValidationFunction(errorResultObjectSchema)
-#     if typeof checkForValidErrorObject != "function"
-#         throw new Error("checkForValidErrorObject is not a function @#{route}!")
-
-#     ## responseAuth is provided
-#     addResponseAuth = conf.responseAuth
-#     if typeof responseAuth != "function"
-#         throw new Error("addResponseAuth is not a function @#{route}!")
+    ## responseAuth is provided
+    addResponseAuth = conf.responseAuth
+    if typeof addResponseAuth != "function"
+        throw new Error("addResponseAuth is not a function @#{route}!")
 
 
-#     handlerFunctionFragments = ->
-#         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#         ## Expectation without authOption or argsSchema -> no Body!
-#         if ctx.bodyString != "" or ctx.bodyObj != undefined or
-#         ctx.auth != undefined or ctx.args != undefined
-#             return respondWith400(res, "Invalid Context for handler 0000 @#{route}!") 
+    handlerFunctionFragments = ->
+        ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ## Expectation without authOption or argsSchema -> no Body!
+        if ctx.bodyString != "" or ctx.bodyObj != undefined or
+        ctx.auth != undefined or ctx.args != undefined
+            return respondWith400(res, "Invalid Context for handler 0000 @#{route}!") 
         
-#         ## Execution without argsSchema
-#         Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
-#         ## TODO: maybe set a timer to protect against forever hanging Promises
-#         result = await func(undefined, ctx)
+        ## Execution without argsSchema
+        Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
+        ## TODO: maybe set a timer to protect against forever hanging Promises
+        result = await func(undefined, ctx)
 
-#         ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#         ## Execution with authOption
-#         err = await authenticateRequest(req, ctx)
-#         if err then return respondWith401(res, "Authentication fail! (#{err})")
-#         Object.freeze(ctx.auth)
+        ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ## Execution with authOption
+        err = await authenticateRequest(req, ctx)
+        if err then return respondWith401(res, "Authentication fail! (#{err})")
+        Object.freeze(ctx.auth)
 
-#         ctx.args = undefined
+        ctx.args = undefined
         
-#         ## Execution without argsSchema
-#         Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
-#         ## TODO: maybe set a timer to protect against forever hanging Promises
-#         result = await func(undefined, ctx)
+        ## Execution without argsSchema
+        Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
+        ## TODO: maybe set a timer to protect against forever hanging Promises
+        result = await func(undefined, ctx)
 
-#         ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#         ## Execution with argsSchema
-#         err = validateArgs(ctx.args)
-#         if err then return respondWith400(res, "Validation fail! (#{err})")
+        ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ## Execution with argsSchema
+        err = validateArgs(ctx.args)
+        if err then return respondWith400(res, "Validation fail! (#{err})")
 
-#         Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
-#         ## TODO: maybe set a timer to protect against forever hanging Promises
-#         result = await func(ctx.args, ctx)
+        Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
+        ## TODO: maybe set a timer to protect against forever hanging Promises
+        result = await func(ctx.args, ctx)
 
-#         ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#         ## Execution with authOption
-#         err = await authenticateRequest(req, ctx)
-#         if err then return respondWith401(res, "Authentication fail! (#{err})")
-#         Object.freeze(ctx.auth)
+        ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ## Execution with authOption
+        err = await authenticateRequest(req, ctx)
+        if err then return respondWith401(res, "Authentication fail! (#{err})")
+        Object.freeze(ctx.auth)
 
-#         ## Execution with argsSchema
-#         err = validateArgs(ctx.args)
-#         if err then return respondWith400(res, "Validation fail! (#{err})")
+        ## Execution with argsSchema
+        err = validateArgs(ctx.args)
+        if err then return respondWith400(res, "Validation fail! (#{err})")
 
-#         Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
-#         ## TODO: maybe set a timer to protect against forever hanging Promises
-#         result = await func(ctx.args, ctx)
+        Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
+        ## TODO: maybe set a timer to protect against forever hanging Promises
+        result = await func(ctx.args, ctx)
 
-#         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+        ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-#         ## RESPONSE FRAGMENTS ######################################
+        ## RESPONSE FRAGMENTS ######################################
 
-#         ## xx00 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#         ## Error Response without responseAuth or resultSchema
-#         if typeof result ==  "string" and result.length > 0
-#            errorString = '"'+result+'"'
-#            return respondWithError(res, errorString)
+        ## xx00 - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ## Result Response without responseAuth or resultSchema
+        ## Fast Return on expected empty result
+        if !result then return respondWithResult(res, "")
 
-#         ## Result Response without responseAuth or resultSchema
-#         return respondWithResult(res, "")
-
-#         ## xx10 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#         ## Result Response with resultSchema
-#         err  = validateResult(result)
-#         if !err ## valid result then return fast
-#             resultString = stringifyResult(result)
-#             return respondWithResult(res, resultString)
-
-#         ## Invalid result is definitely an Error, just what type of Error? 
-#         type = typeof result
-#         if type == "string" and result.length > 0 
-#             errorString = '"'+result+'"'
-#             return respondWithError(res, errorString)
-
-#         if Array.isArray(result) and result.length == 1 and 
-#         typeof result[0] == "string" and result[0].length > 0
-#             errorString = '"'+result[0]+'"'
-#             return respondWithError(res, errorString)
+        ## Error String Response
+        if typeof result ==  "string" and result.length > 0
+           errorString = JSON.stringify(result)
+           return respondWithError(res, errorString)
         
-#         err = checkForValidErrorObject(result)
-#         if err then return respondWith500(res, "Invalid result!")
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = JSON.stringify(result[0])
+            return respondWithError(res, errorString)
+        
+        ## Error Object?
+        err = checkForValidErrorObject(result)
+        if err then return respondWith500(res, "Invalid result!")
 
-#         ## Here we have a valid ErrorObject as response Error
-#         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
-#         return respondWithError(res, errorString)
+        ## Here we have a valid ErrorObject for the Response
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        return respondWithError(res, errorString)
 
-#         ## xx01 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#         ## Error Response with responseAuth
-#         if typeof result == "string" and result.length > 0 
-#             errorString = '"'+result+'"'
-#             errorString = await addResponseAuth("error", errorString, ctx)
-#             return respondWithError(res, errorString)
+        ## xx10 - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ## Result Response with resultSchema
+        err  = validateResult(result)
+        if !err ## valid result then return fast
+            return respondWithResult(res, JSON.stringify(result))
 
-#         ## Empty Response with responseAuth 
-#         resultString = await addResponseAuth("result", "", ctx)
-#         return respondWithResult(res, resultString)
+        ## Invalid result is definitely an Error, just what type of Error? 
+        ## Error String Response
+        if typeof result == "string" and result.length > 0
+            errorString = JSON.stringify(result)
+            return respondWithError(res, errorString)
 
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = JSON.stringify(result[0])
+            return respondWithError(res, errorString)
+        
+        ## Error Object?
+        err = checkForValidErrorObject(result)
+        if err then return respondWith500(res, "Invalid result!")
 
-#         ## xx11 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-#         ## Result Response with resultSchema and responseAuth
-#         err  = validateResult(result)
-#         if !err ## valid result then return fast
-#             resultString = stringifyResult(result)
-#             resultString = await addResponseAuth("result", resultString, ctx)
-#             return respondWithResult(res, resultString)
+        ## Here we have a valid ErrorObject for the Response
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        return respondWithError(res, errorString)
 
-#         ## Invalid result is definitely an Error, just what type of Eror? 
-#         if typeof result == "string" and result.length > 0 
-#             errorString = '"'+result+'"'
-#             errorString = await addResponseAuth("error", errorString, ctx)
-#             return respondWithError(res, errorString)
+        ## xx01 - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ## Result Response with responseAuth
+        if !result ## fast Return on expected empty result
+            resultString = await addResponseAuth('{"result":""}', ctx)
+            return respondWithResult(res, resultString)
+        
+        ## Nonempty result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
+            return respondWithError(res, errorString)
 
-#         if Array.isArray(result) and result.length == 1 and 
-#         typeof result[0] == "string" and result[0].length > 0
-#             errorString = '"'+result[0]+'"'
-#             errorString = await addResponseAuth("error", errorString, ctx)
-#             return respondWithError(res, errorString)
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
+            return respondWithError(res, errorString)
 
-#         ## No ResponseAuth on Complete Execution failure        
-#         err = checkForValidErrorObject(result)
-#         if err then return respondWith500(res, "Invalid result!")
+        ## Error Object?
+        err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
+        if err then return respondWith500(res, "Invalid result!")
 
-#         ## Here we have a valid ErrorObject as response Error
-#         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
-#         errorString = await addResponseAuth("error", errorString, ctx)
-#         return respondWithError(res, errorString)
+        ## Here we hve a valid ErrorObject for the Response with responseAuth
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        errorString = await addResponseAuth(errorString, ctx)
+        return respondWithError(res, errorString)
+
+        
+        ## xx11 - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        ## Result Response with resultSchema and responseAuth
+        err  = validateResult(result)
+        if !err ## valid result then return fast
+            resultString = '{"result":'+JSON.stringify(result)+'}'
+            resultString = await addResponseAuth(resultString, ctx)
+            return respondWithResult(res, resultString)
+
+        ## Invalid result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
+            return respondWithError(res, errorString)
+        
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
+            return respondWithError(res, errorString)
+
+        ## Error Object?
+        err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we have a valid ErrorObject as response Error
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        errorString = await addResponseAuth(errorString, ctx)
+        return respondWithError(res, errorString)
 
 
 ############################################################
@@ -518,14 +578,29 @@ handlerCreators["0000"] = (route, func, conf) -> #0
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
         ## xx00 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ## Error Response without responseAuth or resultSchema
-        if typeof result ==  "string" and result.length > 0
-           errorString = '"'+result+'"'
-           return respondWithError(res, errorString)
-
         ## Result Response without responseAuth or resultSchema
-        return respondWithResult(res, "")
-    
+        ## Fast Return on expected empty result
+        if !result then return respondWithResult(res, "")
+
+        ## Error String Response
+        if typeof result ==  "string" and result.length > 0
+           errorString = JSON.stringify(result)
+           return respondWithError(res, errorString)
+        
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = JSON.stringify(result[0])
+            return respondWithError(res, errorString)
+        
+        ## Error Object 
+        err = checkForValidErrorObject(result)
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we have a valid ErrorObject for the Response
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        return respondWithError(res, errorString)
+
     return handlerFunction
 
 ############################################################
@@ -552,20 +627,35 @@ handlerCreators["1000"] = (route, func, conf) -> #1 aO
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
         ## xx00 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ## Error Response without responseAuth or resultSchema
-        if typeof result ==  "string" and result.length > 0
-           errorString = '"'+result+'"'
-           return respondWithError(res, errorString)
-
         ## Result Response without responseAuth or resultSchema
-        return respondWithResult(res, "")
+        ## Fast Return on expected empty result
+        if !result then return respondWithResult(res, "")
+
+        ## Error String Response
+        if typeof result ==  "string" and result.length > 0
+           errorString = JSON.stringify(result)
+           return respondWithError(res, errorString)
+        
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = JSON.stringify(result[0])
+            return respondWithError(res, errorString)
+        
+        ## Error Object 
+        err = checkForValidErrorObject(result)
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we have a valid ErrorObject for the Response
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        return respondWithError(res, errorString)
 
     return handlerFunction
 
 ############################################################
 handlerCreators["0100"] = (route, func, conf) -> #2 aS
     ## argsSchema is provided
-    validateArgs = createValidationFunction(conf.argsSchema)
+    validateArgs = createValidator(conf.argsSchema)
     if typeof validateArgs != "function"
         throw new Error("validateArgs is not a function @#{route}!")
     
@@ -582,13 +672,28 @@ handlerCreators["0100"] = (route, func, conf) -> #2 aS
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
         ## xx00 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ## Error Response without responseAuth or resultSchema
-        if typeof result ==  "string" and result.length > 0
-           errorString = '"'+result+'"'
-           return respondWithError(res, errorString)
-
         ## Result Response without responseAuth or resultSchema
-        return respondWithResult(res, "")
+        ## Fast Return on expected empty result
+        if !result then return respondWithResult(res, "")
+
+        ## Error String Response
+        if typeof result ==  "string" and result.length > 0
+           errorString = JSON.stringify(result)
+           return respondWithError(res, errorString)
+        
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = JSON.stringify(result[0])
+            return respondWithError(res, errorString)
+        
+        ## Error Object 
+        err = checkForValidErrorObject(result)
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we have a valid ErrorObject for the Response
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        return respondWithError(res, errorString)
 
     return handlerFunction
 
@@ -600,7 +705,7 @@ handlerCreators["1100"] = (route, func, conf) -> #3 aO + aS
         throw new Error("authOption not a function @#{route}!")
     
     ## argsSchema is provided
-    validateArgs = createValidationFunction(conf.argsSchema)
+    validateArgs = createValidator(conf.argsSchema)
     if typeof validateArgs != "function"
         throw new Error("validateArgs is not a function @#{route}!")
 
@@ -622,13 +727,29 @@ handlerCreators["1100"] = (route, func, conf) -> #3 aO + aS
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
         ## xx00 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ## Error Response without responseAuth or resultSchema
-        if typeof result ==  "string" and result.length > 0
-           errorString = '"'+result+'"'
-           return respondWithError(res, errorString)
-
         ## Result Response without responseAuth or resultSchema
-        return respondWithResult(res, "")
+        ## Fast Return on expected empty result
+        if !result then return respondWithResult(res, "")
+
+        ## Error String Response
+        if typeof result ==  "string" and result.length > 0
+           errorString = JSON.stringify(result)
+           return respondWithError(res, errorString)
+        
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = JSON.stringify(result[0])
+            return respondWithError(res, errorString)
+        
+        ## Error Object 
+        err = checkForValidErrorObject(result)
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we have a valid ErrorObject for the Response
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        return respondWithError(res, errorString)
+
 
     return handlerFunction
 
@@ -636,13 +757,9 @@ handlerCreators["1100"] = (route, func, conf) -> #3 aO + aS
 handlerCreators["0010"] = (route, func, conf) -> #4 rS
 
     ## resultSchema is provided
-    validateResult = createValidationFunction(conf.resultSchema)
+    validateResult = createValidator(conf.resultSchema)
     if typeof validateResult != "function"
         throw new Error("validateResult is not a function @#{route}!")
-
-    stringifyResult = createStringifyFunction(conf.resultSchema)
-    if typeof stringifyResult != "function"
-        throw new Error("stringifyResult is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -662,24 +779,25 @@ handlerCreators["0010"] = (route, func, conf) -> #4 rS
         ## Result Response with resultSchema
         err  = validateResult(result)
         if !err ## valid result then return fast
-            resultString = stringifyResult(result)
-            return respondWithResult(res, resultString)
+            return respondWithResult(res, JSON.stringify(result))
 
         ## Invalid result is definitely an Error, just what type of Error? 
-        type = typeof result
-        if type == "string" and result.length > 0 
-            errorString = '"'+result+'"'
+        ## Error String Response
+        if typeof result == "string" and result.length > 0
+            errorString = JSON.stringify(result)
             return respondWithError(res, errorString)
 
+        ## Error String in Array
         if Array.isArray(result) and result.length == 1 and 
         typeof result[0] == "string" and result[0].length > 0
-            errorString = '"'+result[0]+'"'
+            errorString = JSON.stringify(result[0])
             return respondWithError(res, errorString)
         
+        ## Error Object?
         err = checkForValidErrorObject(result)
         if err then return respondWith500(res, "Invalid result!")
 
-        ## Here we have a valid ErrorObject as response Error
+        ## Here we have a valid ErrorObject for the Response
         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
         return respondWithError(res, errorString)
 
@@ -689,24 +807,20 @@ handlerCreators["0010"] = (route, func, conf) -> #4 rS
 handlerCreators["1010"] = (route, func, conf) -> #5 a0 + rS
     ## authOption is provided
     authenticateRequest = conf.authOption
-    if typeof authenticateRequest != "function" 
+    if typeof authenticateRequest != "function"
         throw new Error("authOption not a function @#{route}!")
 
     ## resultSchema is provided
-    validateResult = createValidationFunction(conf.resultSchema)
+    validateResult = createValidator(conf.resultSchema)
     if typeof validateResult != "function"
         throw new Error("validateResult is not a function @#{route}!")
 
-    stringifyResult = createStringifyFunction(conf.resultSchema)
-    if typeof stringifyResult != "function"
-        throw new Error("stringifyResult is not a function @#{route}!")
-
-    checkForValidErrorObject =  createValidationFunction(errorResultObjectSchema)
+    checkForValidErrorObject =  createValidator(errorResultObjectSchema)
     if typeof checkForValidErrorObject != "function"
         throw new Error("checkForValidErrorObject is not a function @#{route}!")
 
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -726,52 +840,50 @@ handlerCreators["1010"] = (route, func, conf) -> #5 a0 + rS
         ## Result Response with resultSchema
         err  = validateResult(result)
         if !err ## valid result then return fast
-            resultString = stringifyResult(result)
-            return respondWithResult(res, resultString)
+            return respondWithResult(res, JSON.stringify(result))
 
         ## Invalid result is definitely an Error, just what type of Error? 
-        type = typeof result
-        if type == "string" and result.length > 0 
-            errorString = '"'+result+'"'
+        ## Error String Response
+        if typeof result == "string" and result.length > 0
+            errorString = JSON.stringify(result)
             return respondWithError(res, errorString)
 
+        ## Error String in Array
         if Array.isArray(result) and result.length == 1 and 
         typeof result[0] == "string" and result[0].length > 0
-            errorString = '"'+result[0]+'"'
+            errorString = JSON.stringify(result[0])
             return respondWithError(res, errorString)
         
+        ## Error Object?
         err = checkForValidErrorObject(result)
         if err then return respondWith500(res, "Invalid result!")
 
-        ## Here we have a valid ErrorObject as response Error
+        ## Here we have a valid ErrorObject for the Response
         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
         return respondWithError(res, errorString)
-
     return handlerFunction
 
 ############################################################
 handlerCreators["0110"] = (route, func, conf) -> #6 aS + rS
     ## argsSchema is provided
-    validateArgs = createValidationFunction(conf.argsSchema)
+    validateArgs = createValidator(conf.argsSchema)
     if typeof validateArgs != "function"
         throw new Error("validateArgs is not a function @#{route}!")
 
     ## resultSchema is provided
-    validateResult = createValidationFunction(conf.resultSchema)
+    validateResult = createValidator(conf.resultSchema)
     if typeof validateResult != "function"
         throw new Error("validateResult is not a function @#{route}!")
 
-    stringifyResult = createStringifyFunction(conf.resultSchema)
-    if typeof stringifyResult != "function"
-        throw new Error("stringifyResult is not a function @#{route}!")
-
-    checkForValidErrorObject =  createValidationFunction(errorResultObjectSchema)
+    checkForValidErrorObject =  createValidator(errorResultObjectSchema)
     if typeof checkForValidErrorObject != "function"
         throw new Error("checkForValidErrorObject is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with argsSchema
+        # log "@handler 0110 of #{route}"
+        # olog ctx
         err = validateArgs(ctx.args)
         if err then return respondWith400(res, "Validation fail! (#{err})")
 
@@ -785,27 +897,28 @@ handlerCreators["0110"] = (route, func, conf) -> #6 aS + rS
         ## Result Response with resultSchema
         err  = validateResult(result)
         if !err ## valid result then return fast
-            resultString = stringifyResult(result)
-            return respondWithResult(res, resultString)
+            return respondWithResult(res, JSON.stringify(result))
 
         ## Invalid result is definitely an Error, just what type of Error? 
-        type = typeof result
-        if type == "string" and result.length > 0 
-            errorString = '"'+result+'"'
+        ## Error String Response
+        if typeof result == "string" and result.length > 0
+            errorString = JSON.stringify(result)
             return respondWithError(res, errorString)
 
+        ## Error String in Array
         if Array.isArray(result) and result.length == 1 and 
         typeof result[0] == "string" and result[0].length > 0
-            errorString = '"'+result[0]+'"'
+            errorString = JSON.stringify(result[0])
             return respondWithError(res, errorString)
         
+        ## Error Object?
         err = checkForValidErrorObject(result)
         if err then return respondWith500(res, "Invalid result!")
 
-        ## Here we have a valid ErrorObject as response Error
+        ## Here we have a valid ErrorObject for the Response
         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
         return respondWithError(res, errorString)
-    
+
     return handlerFunction
 
 ############################################################
@@ -816,24 +929,20 @@ handlerCreators["1110"] = (route, func, conf) -> #7 aO + aS + rS
         throw new Error("authOption not a function @#{route}!")
 
     ## argsSchema is provided
-    validateArgs = createValidationFunction(conf.argsSchema)
+    validateArgs = createValidator(conf.argsSchema)
     if typeof validateArgs != "function"
         throw new Error("validateArgs is not a function @#{route}!")
 
     ## resultSchema is provided
-    validateResult = createValidationFunction(conf.resultSchema)
+    validateResult = createValidator(conf.resultSchema)
     if typeof validateResult != "function"
         throw new Error("validateResult is not a function @#{route}!")
 
-    stringifyResult = createStringifyFunction(conf.resultSchema)
-    if typeof stringifyResult != "function"
-        throw new Error("stringifyResult is not a function @#{route}!")
-
-    checkForValidErrorObject =  createValidationFunction(errorResultObjectSchema)
+    checkForValidErrorObject =  createValidator(errorResultObjectSchema)
     if typeof checkForValidErrorObject != "function"
         throw new Error("checkForValidErrorObject is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -854,37 +963,38 @@ handlerCreators["1110"] = (route, func, conf) -> #7 aO + aS + rS
         ## Result Response with resultSchema
         err  = validateResult(result)
         if !err ## valid result then return fast
-            resultString = stringifyResult(result)
-            return respondWithResult(res, resultString)
+            return respondWithResult(res, JSON.stringify(result))
 
         ## Invalid result is definitely an Error, just what type of Error? 
-        type = typeof result
-        if type == "string" and result.length > 0 
-            errorString = '"'+result+'"'
+        ## Error String Response
+        if typeof result == "string" and result.length > 0
+            errorString = JSON.stringify(result)
             return respondWithError(res, errorString)
 
+        ## Error String in Array
         if Array.isArray(result) and result.length == 1 and 
         typeof result[0] == "string" and result[0].length > 0
-            errorString = '"'+result[0]+'"'
+            errorString = JSON.stringify(result[0])
             return respondWithError(res, errorString)
         
+        ## Error Object?
         err = checkForValidErrorObject(result)
         if err then return respondWith500(res, "Invalid result!")
 
-        ## Here we have a valid ErrorObject as response Error
+        ## Here we have a valid ErrorObject for the Response
         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
         return respondWithError(res, errorString)
-    
+
     return handlerFunction
 
 ############################################################
 handlerCreators["0001"] = (route, func, conf) -> #8 rA
     ## responseAuth is provided
     addResponseAuth = conf.responseAuth
-    if typeof responseAuth != "function"
+    if typeof addResponseAuth != "function"
         throw new Error("addResponseAuth is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
         if ctx.bodyString != "" or ctx.bodyObj != undefined or
@@ -899,15 +1009,34 @@ handlerCreators["0001"] = (route, func, conf) -> #8 rA
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
         ## xx01 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ## Error Response with responseAuth
-        if typeof result == "string" and result.length > 0 
-            errorString = '"'+result+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+        ## Result Response with responseAuth
+        if !result ## fast Return on expected empty result
+            resultString = await addResponseAuth('{"result":""}', ctx)
+            return respondWithResult(res, resultString)
+        
+        ## Nonempty result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
 
-        ## Empty Response with responseAuth 
-        resultString = await addResponseAuth("result", "", ctx)
-        return respondWithResult(res, resultString)
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
+            return respondWithError(res, errorString)
+
+        ## Error Object?
+        err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we hve a valid ErrorObject for the Response with responseAuth
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        errorString = await addResponseAuth(errorString, ctx)
+        return respondWithError(res, errorString)
     
     return handlerFunction
 
@@ -920,10 +1049,10 @@ handlerCreators["1001"] = (route, func, conf) -> #9 aO + rA
 
     ## responseAuth is provided
     addResponseAuth = conf.responseAuth
-    if typeof responseAuth != "function"
+    if typeof addResponseAuth != "function"
         throw new Error("addResponseAuth is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -940,31 +1069,50 @@ handlerCreators["1001"] = (route, func, conf) -> #9 aO + rA
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
         ## xx01 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ## Error Response with responseAuth
-        if typeof result == "string" and result.length > 0 
-            errorString = '"'+result+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+        ## Result Response with responseAuth
+        if !result ## fast Return on expected empty result
+            resultString = await addResponseAuth('{"result":""}', ctx)
+            return respondWithResult(res, resultString)
+        
+        ## Nonempty result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
 
-        ## Empty Response with responseAuth 
-        resultString = await addResponseAuth("result", "", ctx)
-        return respondWithResult(res, resultString)
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
+            return respondWithError(res, errorString)
+
+        ## Error Object?
+        err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we hve a valid ErrorObject for the Response with responseAuth
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        errorString = await addResponseAuth(errorString, ctx)
+        return respondWithError(res, errorString)
     
     return handlerFunction
 
 ############################################################
 handlerCreators["0101"] = (route, func, conf) -> #10 aS + rA
     ## argsSchema is provided
-    validateArgs = createValidationFunction(conf.argsSchema)
+    validateArgs = createValidator(conf.argsSchema)
     if typeof validateArgs != "function"
         throw new Error("validateArgs is not a function @#{route}!")
 
     ## responseAuth is provided
     addResponseAuth = conf.responseAuth
-    if typeof responseAuth != "function"
+    if typeof addResponseAuth != "function"
         throw new Error("addResponseAuth is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with argsSchema
         err = validateArgs(ctx.args)
@@ -977,15 +1125,34 @@ handlerCreators["0101"] = (route, func, conf) -> #10 aS + rA
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
         ## xx01 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ## Error Response with responseAuth
-        if typeof result == "string" and result.length > 0 
-            errorString = '"'+result+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+        ## Result Response with responseAuth
+        if !result ## fast Return on expected empty result
+            resultString = await addResponseAuth('{"result":""}', ctx)
+            return respondWithResult(res, resultString)
+        
+        ## Nonempty result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
 
-        ## Empty Response with responseAuth 
-        resultString = await addResponseAuth("result", "", ctx)
-        return respondWithResult(res, resultString)
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
+            return respondWithError(res, errorString)
+
+        ## Error Object?
+        err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we hve a valid ErrorObject for the Response with responseAuth
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        errorString = await addResponseAuth(errorString, ctx)
+        return respondWithError(res, errorString)
     
     return handlerFunction
 
@@ -997,16 +1164,16 @@ handlerCreators["1101"] = (route, func, conf) -> #11 aO + aS + rA
         throw new Error("authOption not a function @#{route}!")
 
     ## argsSchema is provided
-    validateArgs = createValidationFunction(conf.argsSchema)
+    validateArgs = createValidator(conf.argsSchema)
     if typeof validateArgs != "function"
         throw new Error("validateArgs is not a function @#{route}!")
 
     ## responseAuth is provided
     addResponseAuth = conf.responseAuth
-    if typeof responseAuth != "function"
+    if typeof addResponseAuth != "function"
         throw new Error("addResponseAuth is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -1024,39 +1191,54 @@ handlerCreators["1101"] = (route, func, conf) -> #11 aO + aS + rA
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
         ## xx01 - - - - - - - - - - - - - - - - - - - - - - - - - - -
-        ## Error Response with responseAuth
-        if typeof result == "string" and result.length > 0 
-            errorString = '"'+result+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+        ## Result Response with responseAuth
+        if !result ## fast Return on expected empty result
+            resultString = await addResponseAuth('{"result":""}', ctx)
+            return respondWithResult(res, resultString)
+        
+        ## Nonempty result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
 
-        ## Empty Response with responseAuth 
-        resultString = await addResponseAuth("result", "", ctx)
-        return respondWithResult(res, resultString)
+        ## Error String in Array
+        if Array.isArray(result) and result.length == 1 and 
+        typeof result[0] == "string" and result[0].length > 0
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
+            return respondWithError(res, errorString)
+
+        ## Error Object?
+        err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
+        if err then return respondWith500(res, "Invalid result!")
+
+        ## Here we hve a valid ErrorObject for the Response with responseAuth
+        errorString = '{"error":'+JSON.stringify(result.error)+'}'        
+        errorString = await addResponseAuth(errorString, ctx)
+        return respondWithError(res, errorString)
     
     return handlerFunction
 
 ############################################################
 handlerCreators["0011"] = (route, func, conf) -> #12 rS + rA
     ## resultSchema is provided
-    validateResult = createValidationFunction(conf.resultSchema)
+    validateResult = createValidator(conf.resultSchema)
     if typeof validateResult != "function"
         throw new Error("validateResult is not a function @#{route}!")
 
-    stringifyResult = createStringifyFunction(conf.resultSchema)
-    if typeof stringifyResult != "function"
-        throw new Error("stringifyResult is not a function @#{route}!")
-
-    checkForValidErrorObject =  createValidationFunction(errorResultObjectSchema)
+    checkForValidErrorObject =  createValidator(errorResultObjectSchema)
     if typeof checkForValidErrorObject != "function"
         throw new Error("checkForValidErrorObject is not a function @#{route}!")
 
     ## responseAuth is provided
     addResponseAuth = conf.responseAuth
-    if typeof responseAuth != "function"
+    if typeof addResponseAuth != "function"
         throw new Error("addResponseAuth is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
         if ctx.bodyString != "" or ctx.bodyObj != undefined or
@@ -1074,30 +1256,34 @@ handlerCreators["0011"] = (route, func, conf) -> #12 rS + rA
         ## Result Response with resultSchema and responseAuth
         err  = validateResult(result)
         if !err ## valid result then return fast
-            resultString = stringifyResult(result)
-            resultString = await addResponseAuth("result", resultString, ctx)
+            resultString = '{"result":'+JSON.stringify(result)+'}'
+            resultString = await addResponseAuth(resultString, ctx)
             return respondWithResult(res, resultString)
 
-        ## Invalid result is definitely an Error, just what type of Eror? 
-        if typeof result == "string" and result.length > 0 
-            errorString = '"'+result+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+        ## Invalid result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
-
+        
+        ## Error String in Array
         if Array.isArray(result) and result.length == 1 and 
         typeof result[0] == "string" and result[0].length > 0
-            errorString = '"'+result[0]+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
 
-        ## No ResponseAuth on Complete Execution failure        
+        ## Error Object?
         err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
         if err then return respondWith500(res, "Invalid result!")
 
         ## Here we have a valid ErrorObject as response Error
         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
-        errorString = await addResponseAuth("error", errorString, ctx)
+        errorString = await addResponseAuth(errorString, ctx)
         return respondWithError(res, errorString)
+
     
     return handlerFunction
 
@@ -1109,24 +1295,20 @@ handlerCreators["1011"] = (route, func, conf) -> #13 aO + rS + rA
         throw new Error("authOption not a function @#{route}!")
 
     ## resultSchema is provided
-    validateResult = createValidationFunction(conf.resultSchema)
+    validateResult = createValidator(conf.resultSchema)
     if typeof validateResult != "function"
         throw new Error("validateResult is not a function @#{route}!")
 
-    stringifyResult = createStringifyFunction(conf.resultSchema)
-    if typeof stringifyResult != "function"
-        throw new Error("stringifyResult is not a function @#{route}!")
-
-    checkForValidErrorObject =  createValidationFunction(errorResultObjectSchema)
+    checkForValidErrorObject =  createValidator(errorResultObjectSchema)
     if typeof checkForValidErrorObject != "function"
         throw new Error("checkForValidErrorObject is not a function @#{route}!")
 
     ## responseAuth is provided
     addResponseAuth = conf.responseAuth
-    if typeof responseAuth != "function"
+    if typeof addResponseAuth != "function"
         throw new Error("addResponseAuth is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -1146,29 +1328,32 @@ handlerCreators["1011"] = (route, func, conf) -> #13 aO + rS + rA
         ## Result Response with resultSchema and responseAuth
         err  = validateResult(result)
         if !err ## valid result then return fast
-            resultString = stringifyResult(result)
-            resultString = await addResponseAuth("result", resultString, ctx)
+            resultString = '{"result":'+JSON.stringify(result)+'}'
+            resultString = await addResponseAuth(resultString, ctx)
             return respondWithResult(res, resultString)
 
-        ## Invalid result is definitely an Error, just what type of Eror? 
-        if typeof result == "string" and result.length > 0 
-            errorString = '"'+result+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+        ## Invalid result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
-
+        
+        ## Error String in Array
         if Array.isArray(result) and result.length == 1 and 
         typeof result[0] == "string" and result[0].length > 0
-            errorString = '"'+result[0]+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
 
-        ## No ResponseAuth on Complete Execution failure        
+        ## Error Object?
         err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
         if err then return respondWith500(res, "Invalid result!")
 
         ## Here we have a valid ErrorObject as response Error
         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
-        errorString = await addResponseAuth("error", errorString, ctx)
+        errorString = await addResponseAuth(errorString, ctx)
         return respondWithError(res, errorString)
     
     return handlerFunction
@@ -1176,29 +1361,25 @@ handlerCreators["1011"] = (route, func, conf) -> #13 aO + rS + rA
 ############################################################
 handlerCreators["0111"] = (route, func, conf) -> #14 aS + rS + rA
     ## argsSchema is provided
-    validateArgs = createValidationFunction(conf.argsSchema)
+    validateArgs = createValidator(conf.argsSchema)
     if typeof validateArgs != "function"
         throw new Error("validateArgs is not a function @#{route}!")
 
     ## resultSchema is provided
-    validateResult = createValidationFunction(conf.resultSchema)
+    validateResult = createValidator(conf.resultSchema)
     if typeof validateResult != "function"
         throw new Error("validateResult is not a function @#{route}!")
 
-    stringifyResult = createStringifyFunction(conf.resultSchema)
-    if typeof stringifyResult != "function"
-        throw new Error("stringifyResult is not a function @#{route}!")
-
-    checkForValidErrorObject =  createValidationFunction(errorResultObjectSchema)
+    checkForValidErrorObject =  createValidator(errorResultObjectSchema)
     if typeof checkForValidErrorObject != "function"
         throw new Error("checkForValidErrorObject is not a function @#{route}!")
 
     ## responseAuth is provided
     addResponseAuth = conf.responseAuth
-    if typeof responseAuth != "function"
+    if typeof addResponseAuth != "function"
         throw new Error("addResponseAuth is not a function @#{route}!")
 
-    handlerFunction = ->
+    handlerFunction = (req, res, ctx) ->
         ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with argsSchema
         err = validateArgs(ctx.args)
@@ -1214,64 +1395,69 @@ handlerCreators["0111"] = (route, func, conf) -> #14 aS + rS + rA
         ## Result Response with resultSchema and responseAuth
         err  = validateResult(result)
         if !err ## valid result then return fast
-            resultString = stringifyResult(result)
-            resultString = await addResponseAuth("result", resultString, ctx)
+            resultString = '{"result":'+JSON.stringify(result)+'}'
+            resultString = await addResponseAuth(resultString, ctx)
             return respondWithResult(res, resultString)
 
-        ## Invalid result is definitely an Error, just what type of Eror? 
-        if typeof result == "string" and result.length > 0 
-            errorString = '"'+result+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+        ## Invalid result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
-
+        
+        ## Error String in Array
         if Array.isArray(result) and result.length == 1 and 
         typeof result[0] == "string" and result[0].length > 0
-            errorString = '"'+result[0]+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
 
-        ## No ResponseAuth on Complete Execution failure        
+        ## Error Object?
         err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
         if err then return respondWith500(res, "Invalid result!")
 
         ## Here we have a valid ErrorObject as response Error
         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
-        errorString = await addResponseAuth("error", errorString, ctx)
+        errorString = await addResponseAuth(errorString, ctx)
         return respondWithError(res, errorString)
     
     return handlerFunction
 
 ############################################################
 handlerCreators["1111"] = (route, func, conf) -> #15 aO + aS + rS + rA
+    log "handlerCreator 1111:"
     ## authOption is provided
     authenticateRequest = conf.authOption
-    if typeof authenticateRequest != "function" 
+    if typeof authenticateRequest != "function"
         throw new Error("authOption not a function @#{route}!")
 
+    log "0"
     ## argsSchema is provided
-    validateArgs = createValidationFunction(conf.argsSchema)
+    validateArgs = createValidator(conf.argsSchema)
     if typeof validateArgs != "function"
         throw new Error("validateArgs is not a function @#{route}!")
 
+    log "1"
     ## resultSchema is provided
-    validateResult = createValidationFunction(conf.resultSchema)
+    validateResult = createValidator(conf.resultSchema)
     if typeof validateResult != "function"
         throw new Error("validateResult is not a function @#{route}!")
 
-    stringifyResult = createStringifyFunction(conf.resultSchema)
-    if typeof stringifyResult != "function"
-        throw new Error("stringifyResult is not a function @#{route}!")
-
-    checkForValidErrorObject =  createValidationFunction(errorResultObjectSchema)
+    log "2"
+    checkForValidErrorObject =  createValidator(errorResultObjectSchema)
     if typeof checkForValidErrorObject != "function"
         throw new Error("checkForValidErrorObject is not a function @#{route}!")
 
+    log "3"
     ## responseAuth is provided
     addResponseAuth = conf.responseAuth
-    if typeof responseAuth != "function"
+    if typeof addResponseAuth != "function"
         throw new Error("addResponseAuth is not a function @#{route}!")
 
-    handlerFunction = ->
+    log "creating the handler..."
+    handlerFunction = (req, res, ctx) ->
         ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -1292,29 +1478,32 @@ handlerCreators["1111"] = (route, func, conf) -> #15 aO + aS + rS + rA
         ## Result Response with resultSchema and responseAuth
         err  = validateResult(result)
         if !err ## valid result then return fast
-            resultString = stringifyResult(result)
-            resultString = await addResponseAuth("result", resultString, ctx)
+            resultString = '{"result":'+JSON.stringify(result)+'}'
+            resultString = await addResponseAuth(resultString, ctx)
             return respondWithResult(res, resultString)
 
-        ## Invalid result is definitely an Error, just what type of Eror? 
-        if typeof result == "string" and result.length > 0 
-            errorString = '"'+result+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+        ## Invalid result is definitely an Error, just what type of Error? 
+        ## Error String response with responseAuth
+        if typeof result == "string" and result.length > 0
+            errorString = '{"error":'+JSON.stringify(result)+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
-
+        
+        ## Error String in Array
         if Array.isArray(result) and result.length == 1 and 
         typeof result[0] == "string" and result[0].length > 0
-            errorString = '"'+result[0]+'"'
-            errorString = await addResponseAuth("error", errorString, ctx)
+            errorString = '{"error":'+JSON.stringify(result[0])+'}'
+            errorString = await addResponseAuth(errorString, ctx)
             return respondWithError(res, errorString)
 
-        ## No ResponseAuth on Complete Execution failure        
+        ## Error Object?
         err = checkForValidErrorObject(result)
+        ## No ResponseAuth on Complete Execution failure
         if err then return respondWith500(res, "Invalid result!")
 
         ## Here we have a valid ErrorObject as response Error
         errorString = '{"error":'+JSON.stringify(result.error)+'}'        
-        errorString = await addResponseAuth("error", errorString, ctx)
+        errorString = await addResponseAuth(errorString, ctx)
         return respondWithError(res, errorString)
     
     return handlerFunction
