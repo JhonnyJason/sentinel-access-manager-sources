@@ -4,23 +4,24 @@ import { createLogFunctions } from "thingy-debug"
 {log, olog} = createLogFunctions("userauthmodule")
 #endregion
 
-############################################################
-export initialize = ->
-    log "initialize"
-    #Implement or Remove :-)
-    return
 
 ############################################################
-export userLoginAuth = (req, ctx) ->
-    log "userLoginAuth"
-    olog ctx
-    return
+import { sha256 } from "secret-manager-crypto-utils"
 
-export onLoginSuccess = (args) ->
-    log "onLoginSuccess"
+############################################################
+verifyCorrectPassword = (email, pwdSH) ->
+    pwdSHH = await sha256(pwdSH)
+    ## TODO
+    return pwdSHH
+
+############################################################
+export login = (args) ->
+    log "login"
     olog args
-    # here we are authenticated already :)!
-    # TODO set AccessToken and answer 
+    err = await verifyCorrectPassword(args.email, args.passwordSH)
+    if err then return "Incorrect Credentials!"
+
+
     authCode = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
     validUntil = Date.now()
     result = { authCode, validUntil }

@@ -5,8 +5,12 @@ import { createLogFunctions } from "thingy-debug"
 #endregion
 
 ############################################################
+#region Modules from the Environment
 import * as dataCache from "cached-persistentstate"
 import * as serviceCrypto from "./servicekeysmodule.js"
+
+#endregion
+
 
 ############################################################
 userDataStore = {}
@@ -16,7 +20,7 @@ userData = {}
 ## UserData Schema
 # {
 #     email: STRINGEMAIL
-#     passwordSHSH: STRINGHEX64
+#     passwordSHH: STRINGHEX64
 #     subscribedUntil: NUMBER
 #     isTester: BOOLEAN
 #     latestInteraction: NUMBER
@@ -64,28 +68,17 @@ signAndSaveUserDataStore = ->
     dataCache.save("userDataStore")
     return
 
-
 ############################################################
 export getNewUserObject = -> {
     email: ""
-    passwordSHSH: ""
+    passwordSHH: ""
     subscribedUntil: 0
     isTester: false
     latestInteraction: 0
 }
 
 ############################################################
-export getUserList = -> 
-    list = []
-    for id,user of userData
-        list.push({
-            userId: id
-            email: user.email
-            subscribedUntil: user.subscribedUntil
-            isTester: user.isTester,
-            lastInteraction: user.lastInteraction
-        })
-    return list
+export getAllUserData = -> userData
 
 ############################################################
 export getUserData = (userId) ->
