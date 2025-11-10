@@ -3,10 +3,11 @@ import { addModulesToDebug } from "thingy-debug"
 ############################################################
 modulesToDebug = {
     adminauthmodule: true
-    userauthmodule: true
-    rpcapimodule: true
+    accountsmodule: true
+    usermanagementmodule: true
+    scicoremodule: true
     scimodule: true
-    # startupmodule: true
+    startupmodule: true
     userdatamodule: true
 
 }

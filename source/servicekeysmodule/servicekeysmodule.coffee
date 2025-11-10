@@ -64,7 +64,7 @@ export getSignedNodeId = ->
     log "getSignedNodeId"
     await ready
     log "we are ready!"
-    result = {}
+    result = Object.create(null)
     result.serverNodeId = serviceState.publicKeyHex
     result.timestamp = validatableStamp.create()
     content = JSON.stringify(result)

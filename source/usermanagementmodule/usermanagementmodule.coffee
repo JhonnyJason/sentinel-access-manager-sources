@@ -9,7 +9,7 @@ import { createLogFunctions } from "thingy-debug"
 import { sha256 } from "secret-manager-crypto-utils"
 
 ############################################################
-import * as uData from "userdatamodule.js"
+import * as uData from "./userdatamodule.js"
 
 #endregion
 
@@ -29,9 +29,9 @@ export getUserList = ->
     return list
 
 ############################################################
-export getUserData = (userId) ->
-    log "getUserData"
-    user = uData.getUserData(userId)
+export getUserById = (userId) ->
+    log "getUserById"
+    user = uData.getUserById(userId)
     olog  { user }
     if !user? then return "User does not exist!"
     return {
@@ -46,7 +46,7 @@ export getUserData = (userId) ->
 ############################################################
 export updateUser = (args) ->
     log "updateUser"
-    user = uData.getUserData(args.userId)
+    user = uData.getUserById(args.userId)
     if !user? then return "User does not exist!"
     user.email = args.email
     user.subscribedUntil = args.subscribedUntil
@@ -61,7 +61,7 @@ export createUser = (args) ->
     user.email = args.email
     user.subscribedUntil = args.subscribedUntil
     user.isTester = args.isTester
-    user.passwordSHH = await getPasswordHash(args.passwordSH)
+    user.passwordSHH = await sha256(args.passwordSH)
     userId = uData.addNewUser(user)
     return userId
 
@@ -72,3 +72,8 @@ export deleteUser = (userId) ->
     uData.removeUserData(userId)
     return
 
+
+############################################################
+export registerNewUser = (args) ->
+    log "registerNewUser"
+    return

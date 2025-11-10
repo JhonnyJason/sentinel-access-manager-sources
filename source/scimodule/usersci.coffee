@@ -17,7 +17,9 @@ import { sciAdd, setValidatorCreator } from "./scicoremodule.js"
 setValidatorCreator(createValidator)
 
 ############################################################
-import { login, register, passwordReset } from "./userauthmodule.js"
+import { 
+    login, register, passwordReset, finalizeAction
+} from "./accountsmodule.js"
 
 ############################################################
 ## Config Object with all options
@@ -34,27 +36,34 @@ import { login, register, passwordReset } from "./userauthmodule.js"
 
 ############################################################
 sciAdd("login", login, {
-    bodySizeLimit: 348,
+    bodySizeLimit: 360,
     argsSchema: {
         email: STRINGEMAIL,
         passwordSH: STRINGHEX64
     },
     resultSchema: { authCode: STRINGHEX64, validUntil: NUMBER }
 })
-# only 200 with certain payload - no expeted Errors
+# 200 with payload - expected Error: Invalid credentials!
 
 ############################################################
 sciAdd("register", register, {
-    bodySizeLimit: 267, 
+    bodySizeLimit: 256, 
     argsSchema: STRINGEMAIL
 })
-# 204 on success - 422 on expected Error: email already in use
+# always 204 - don't give away if email exists ;-)
 
 ############################################################
 sciAdd("requestPasswordReset", passwordReset, {
-    bodySizeLimit: 267
-    argsSchema: { email: STRINGEMAIL }
+    bodySizeLimit: 256
+    argsSchema: STRINGEMAIL
 })
-# always 204 - no expected errors :-)
+# always 204 - don't give away if email exists ;-)
+
+############################################################
+sciAdd("finalizeAction", finalizeAction, {
+    bodySizeLimit: 360,
+    argsSchema: { code: STRINGHEX32, params:[ STRINGEMAIL, STRINGHEX64 ] }
+})
+# 204 or 422 "Code was Invalid!" 
 
 #endregion

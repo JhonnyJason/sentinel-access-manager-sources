@@ -8,12 +8,11 @@ import { createLogFunctions } from "thingy-debug"
 import * as secUtl from "secret-manager-crypto-utils"
 
 ############################################################
-export initialize = ->
-    log "initialize"
-    #Implement or Remove :-)
-    return
-
-############################################################
 export getPasswordHash = (input) ->
     log "getPasswordHash"
     return await secUtl.sha256(input)
+
+export verifyPassword = (pwdSH, pwdSSH) ->
+    toCheckSHH = await secUtl.sha256(pwdSH)
+    if pwdSHH == toCheckSHH then return
+    else return "Incorrect Password!" 

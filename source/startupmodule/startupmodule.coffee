@@ -11,7 +11,7 @@ import * as cachedData from "cached-persistentstate"
 import * as sci from "./scimodule.js"
 import * as cfg from "./configmodule.js"
 
-import * as userData from "./userdatamodule.js"
+import { verifyAccess } from "./mailsendmodule.js"
 
 ############################################################
 cachedData.initialize(cfg.persistentStateOptions)
@@ -20,10 +20,6 @@ cachedData.initialize(cfg.persistentStateOptions)
 export serviceStartup = ->
     log "serviceStartup"
     # other startup moves
+    await verifyAccess()
     sci.prepareAndExpose()
-    # userId = "1"
-    # data = userData.getUserData(userId)
-    # olog data
-    # data = { email: "sample-mail@dotv.ee", pwdSHH:"asdf" }
-    # await userData.setUserData(userId, data)
     return

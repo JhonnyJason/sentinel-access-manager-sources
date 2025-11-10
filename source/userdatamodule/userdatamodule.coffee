@@ -13,8 +13,9 @@ import * as serviceCrypto from "./servicekeysmodule.js"
 
 
 ############################################################
-userDataStore = {}
-userData = {}
+userDataStore = Object.create(null)
+userData = Object.create(null)
+emailToUser = Object.create(null)
 
 ############################################################
 ## UserData Schema
@@ -31,18 +32,20 @@ export initialize = ->
     log "initialize"
     userDataStore = dataCache.load("userDataStore")
     
-    if userDataStore.meta? 
+    if userDataStore.meta?
         try await validateUserDataStore()
         catch err
             console.error("Corrupted userDataStore!\n#{err.message}")
             process.exit(78)
-    else userDataStore.meta = {}
+    else userDataStore.meta = Object.create(null)
     
     if userDataStore.encrypted?
         try userData = await serviceCrypto.decrypt(userDataStore.encrypted)
         catch err then log err
 
     olog userData
+    for id,data of userData
+        emailToUser[data.email] = data
     return 
 
 ############################################################
@@ -81,9 +84,13 @@ export getNewUserObject = -> {
 export getAllUserData = -> userData
 
 ############################################################
-export getUserData = (userId) ->
-    log "getUserData"
+export getUserById = (userId) ->
+    log "getUserById"
     return userData[userId]
+
+export getUserByEmail = (email) ->
+    log "getUserByEmail"
+    return emailToUser[email]
 
 ############################################################
 export addNewUser = (data) ->

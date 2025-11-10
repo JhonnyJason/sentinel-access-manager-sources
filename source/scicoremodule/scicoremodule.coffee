@@ -10,68 +10,7 @@ import http from "node:http"
 import fs from "node:fs"
 import crypto from "node:crypto"
 
-############################################################
-export sciAdd = (route, func, conf) ->
-    throw new Error("Server already running!") unless serverObj == null
-    throw new Error("Route not a string!") unless typeof route == "string"
-    throw new Error("Func not a function!") unless typeof func == "function"
-    throw new Error("Cannot add route twice!") if sciRegistry[route]?
-    throw new Error("function must be defined!") if !func?
-    if !conf? or typeof conf != "object" then conf = {}
-    sciRegistry[route] = { func, conf }
-    return
-
-export setValidatorCreator = (func) ->
-    throw new Error("Server already running!") unless serverObj == null
-    throw new Error("Func not a function!") unless typeof func == "function"
-    createValidator = func
-    return
-
-
-export setUpgradeHandler = (func) ->
-    throw new Error("Server already running!") unless serverObj == null
-    throw new Error("Func not a function!") unless typeof func == "function"
-    conectionUpgradeHandler = func
-    return
-
-############################################################
-export sciStartServer = (o) ->
-    log "setupHTTPServer"
-    o = {} unless o? and typeof o == "object"
-
-    globalBodySizeLimit = o.bodySizeLimit || defaultBodySizeLimit
-
-    requestTimeout = o.requestTimeout || defaultRequestTimeout
-    headersTimeout = o.headersTimeout || defaultHeadersTimeout
-    keepAliveTimeout = o.keepAliveTimeout || defaultKeepAliveTimeout
-    maxHeadersCount = o.maxHeadersCount || defaultMaxHeadersCount
-    maxHeaderSize = o.maxHeaderSize || defaultMaxHeaderSize
-
-    ## Compiling Routes from Registry
-    ## Entry = [key, routeInfo] where routeInfo = { handler, bodySizeLimit }
-    routeEntries = compileRoutes(sciRegistry)
-    routeInfoMap[re[0]] = re[1] for re in routeEntries
-    # olog routeInfoMap
-    sciRegistry = null ## not needed anymore -> GC
-
-    httpOptions = {
-        headersTimeout, 
-        maxHeaderSize,
-        requestTimeout, 
-        keepAliveTimeout   
-    }
-
-    serverObj = http.createServer(httpOptions)
-    serverObj.on("request", mainRequestHandler)
-    serverObj.on("upgrade", conectionUpgradeHandler)
-    serverObj.on("clientError", clientErrorHandler)
-
-
-    ## TODO decide what to listen on :-)
-    ##     use options for deciding what is our
-    serverObj.listen(3333)    
-    log "Server listening!"
-    return
+#endregion
 
 ############################################################
 #region defaultParameters
@@ -95,8 +34,16 @@ serverObj = null
 sciRegistry = Object.create(null)
 routeInfoMap = Object.create(null)
 
+############################################################
+createValidator = null
+
 #endregion
 
+
+############################################################
+handleSocketActivation = ->
+    log "handleSocketActivation"
+    return
 
 ############################################################
 #region Upgrade/Error Handlers
@@ -129,8 +76,8 @@ mainRequestHandler = (req, res) ->
 
     olog req.headers
 
-    res.on("error", (error) -> console.error(error))
-    req.on("error", (error) -> console.error(error))
+    res.on("error", (error) -> console.error(error.message))
+    req.on("error", (error) -> console.error(error.message))
 
     if !(req.method == "GET" || req.method == "POST") then return respondWith405(res)
 
@@ -202,6 +149,22 @@ mainRequestHandler = (req, res) ->
     return
 
 ############################################################
+extractMetaData = (req) ->
+    meta = Object.create(null)
+
+    ## remote ip address
+    forwardedFor = req.headers['x-forwarded-for']
+    ## usually forwarded -> first entry in the list
+    if typeof forwardedFor == "string" and forwardedFor.length > 6
+        meta.ip = forwardedFor.split(",")[0]
+    else meta.ip = req.socket.remoteAddress
+
+    ## used hostname and user agent
+    meta.host = req.headers['host']
+    meta.userAgent = req.headers['user-agent']
+    return meta
+
+############################################################
 processRequest = (req, res, info, ctx) ->
     log "processRequest"
 
@@ -229,32 +192,20 @@ processRequest = (req, res, info, ctx) ->
     catch err then respondWith500(res, err)
     return
 
-extractMetaData = (req) ->
-    meta = Object.create(null)
-
-    ## remote ip address
-    forwardedFor = req.headers['x-forwarded-for']
-    ## usually forwarded -> first entry in the list
-    if typeof forwardedFor == "string" and forwardedFor.length > 6
-        meta.ip = forwardedFor.split(",")[0]
-    else meta.ip = req.socket.remoteAddress
-
-    ## used hostname
-    meta.host = req.headers['host']
-    return meta
 
 #endregion
 
 ############################################################
 #region Compile RouteInfo Entries
 compileRoutes = (sciRegistry) ->
-    # log "compileRoutes"
-    return unless sciRegistry? and typeof sciRegistry == "object"
-
+    log "compileRoutes"
+    return [] unless sciRegistry? and typeof sciRegistry == "object"
+    
     keys = Object.keys(sciRegistry)
     # log keys
     routes = []
-    routes.push(...compile(k, sciRegistry[k])) for k in keys
+    try routes.push(...compile(k, sciRegistry[k])) for k in keys
+    catch err then console.error(err.message)
     return routes
 
 compile = (route, sciObj) ->
@@ -592,8 +543,10 @@ handlerCreators["0000"] = (route, func, conf) -> #0
     handlerFunction = (req, res, ctx) ->
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
-        if ctx.bodyString != "" or ctx.bodyObj != undefined or
-        ctx.auth != undefined or ctx.args != undefined
+        ## bodyString must be empty string -> auth and args as well
+        ## bodyObj must be undefined
+        if ctx.bodyString != "" or ctx.auth != "" or ctx.args != "" or
+        !(ctx.bodyObj == undefined)
             return respondWith400(res, "Invalid Context for handler 0000 @#{route}!") 
         
         ## Execution without argsSchema
@@ -790,9 +743,11 @@ handlerCreators["0010"] = (route, func, conf) -> #4 rS
     handlerFunction = (req, res, ctx) ->
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
-        if ctx.bodyString != "" or ctx.bodyObj != undefined or
-        ctx.auth != undefined or ctx.args != undefined
-            return respondWith400(res, "Invalid Context for handler 0000 @#{route}!") 
+        ## bodyString must be empty string -> auth and args as well
+        ## bodyObj must be undefined
+        if ctx.bodyString != "" or ctx.auth != "" or ctx.args != "" or
+        !(ctx.bodyObj == undefined)
+            return respondWith400(res, "Invalid Context for handler 0010 @#{route}!") 
         
         ## Execution without argsSchema
         Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
@@ -1010,9 +965,11 @@ handlerCreators["0001"] = (route, func, conf) -> #8 rA
     handlerFunction = (req, res, ctx) ->
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
-        if ctx.bodyString != "" or ctx.bodyObj != undefined or
-        ctx.auth != undefined or ctx.args != undefined
-            return respondWith400(res, "Invalid Context for handler 0000 @#{route}!") 
+        ## bodyString must be empty string -> auth and args as well
+        ## bodyObj must be undefined
+        if ctx.bodyString != "" or ctx.auth != "" or ctx.args != "" or
+        !(ctx.bodyObj == undefined)
+            return respondWith400(res, "Invalid Context for handler 0001 @#{route}!") 
         
         ## Execution without argsSchema
         Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
@@ -1250,14 +1207,17 @@ handlerCreators["0011"] = (route, func, conf) -> #12 rS + rA
     handlerFunction = (req, res, ctx) ->
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
-        if ctx.bodyString != "" or ctx.bodyObj != undefined or
-        ctx.auth != undefined or ctx.args != undefined
-            return respondWith400(res, "Invalid Context for handler 0000 @#{route}!") 
+        ## bodyString must be empty string -> auth and args as well
+        ## bodyObj must be undefined
+        if ctx.bodyString != "" or ctx.auth != "" or ctx.args != "" or
+        !(ctx.bodyObj == undefined)
+            return respondWith400(res, "Invalid Context for handler 0011 @#{route}!") 
         
         ## Execution without argsSchema
         Object.freeze(ctx) ## some bit of added safety I guess... maybe deep freeze?
         ## TODO: maybe set a timer to protect against forever hanging Promises
         result = await func(undefined, ctx)
+
 
         ## ## ## EXECUTED ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
@@ -1500,4 +1460,72 @@ handlerCreators["1111"] = (route, func, conf) -> #15 aO + aS + rS + rA
     
     return handlerFunction
 
+#endregion
+
+
+############################################################
+#region Function Exports
+export sciAdd = (route, func, conf) ->
+    throw new Error("Server already running!") unless serverObj == null
+    throw new Error("Route not a string!") unless typeof route == "string"
+    throw new Error("Func not a function!") unless typeof func == "function"
+    throw new Error("Cannot add route twice!") if sciRegistry[route]?
+    throw new Error("function must be defined!") if !func?
+    if !conf? or typeof conf != "object" then conf = Object.create(null)
+    sciRegistry[route] = { func, conf }
+    return
+
+############################################################
+export setValidatorCreator = (func) ->
+    throw new Error("Server already running!") unless serverObj == null
+    throw new Error("Func not a function!") unless typeof func == "function"
+    createValidator = func
+    return
+
+export setUpgradeHandler = (func) ->
+    throw new Error("Server already running!") unless serverObj == null
+    throw new Error("Func not a function!") unless typeof func == "function"
+    conectionUpgradeHandler = func
+    return
+
+############################################################
+export sciStartServer = (o) ->
+    log "sciStartServer"
+    o = Object.create(null) unless o? and typeof o == "object"
+
+    globalBodySizeLimit = o.bodySizeLimit || defaultBodySizeLimit
+
+    requestTimeout = o.requestTimeout || defaultRequestTimeout
+    headersTimeout = o.headersTimeout || defaultHeadersTimeout
+    keepAliveTimeout = o.keepAliveTimeout || defaultKeepAliveTimeout
+    maxHeadersCount = o.maxHeadersCount || defaultMaxHeadersCount
+    maxHeaderSize = o.maxHeaderSize || defaultMaxHeaderSize
+
+    ## Compiling Routes from Registry
+    ## Entry = [key, routeInfo] where routeInfo = { handler, bodySizeLimit }
+    routeEntries = compileRoutes(sciRegistry)
+    routeInfoMap[re[0]] = re[1] for re in routeEntries
+    # olog routeInfoMap
+    sciRegistry = null ## not needed anymore -> GC
+
+    httpOptions = {
+        headersTimeout, 
+        maxHeaderSize,
+        requestTimeout, 
+        keepAliveTimeout   
+    }
+
+    serverObj = http.createServer(httpOptions)
+    serverObj.on("request", mainRequestHandler)
+    serverObj.on("upgrade", conectionUpgradeHandler)
+    serverObj.on("clientError", clientErrorHandler)
+
+    if process.env.SOCKETMODE then return handleSocketActivation()
+    if process.env.PORT then return serverObj.listen(process.env.PORT)
+
+    if o.listenOn == "systemd" then return handleSocketActivation()
+    if !o.listenOn? then o.listenOn = 3333
+
+    return serverObj.listen(o.listen)
+        
 #endregion

@@ -6,9 +6,11 @@ import *  as cfg from "./configmodule.js"
 
 ############################################################
 run = ->
-    promises = (m.initialize(cfg) for n,m of Modules when m.initialize?) 
-    await Promise.all(promises)
-    Modules.startupmodule.serviceStartup()
+    try
+        promises = (m.initialize(cfg) for n,m of Modules when m.initialize?) 
+        await Promise.all(promises)
+        await Modules.startupmodule.serviceStartup()
+    catch err then console.error(err)
 
 ############################################################
 run()

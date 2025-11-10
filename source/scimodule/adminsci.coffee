@@ -46,7 +46,7 @@ sciAdd("getUserList", usrM.getUserList, {
 #Response is always 200 containing an Array
 
 ############################################################
-sciAdd("getUser", usrM.getUserData, {
+sciAdd("getUser", usrM.getUserById, {
     bodySizeLimit: 600, 
     authOption: signatureAuth,
     argsSchema: STRINGHEX32 
@@ -76,7 +76,7 @@ sciAdd("updateUser", usrM.updateUser, {
 # Response is either 204 or '422 "User does not exist!"'
 
 ############################################################
-sciAdd("createUser", createUser, {
+sciAdd("createUser", usrM.createUser, {
     bodySizeLimit: 1_220,
     authOption: signatureAuth
     argsSchema: {
@@ -90,7 +90,7 @@ sciAdd("createUser", createUser, {
 # Response is either 200 with userId or '422  "Email already in use!"'
 
 ############################################################
-sciAdd("deleteUser", deleteUser, {
+sciAdd("deleteUser", usrM.deleteUser, {
     bodySizeLimit: 500 
     authOption: signatureAuth
     argsSchema: STRINGHEX32
