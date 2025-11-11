@@ -6,7 +6,9 @@ import { createLogFunctions } from "thingy-debug"
 
 ############################################################
 #region modules from the Environment
-import { sha256 } from "secret-manager-crypto-utils"
+# import { sha256 } from "secret-manager-crypto-utils"
+
+import * as authUtl from "./authutilmodule.js"
 
 ############################################################
 import * as uData from "./userdatamodule.js"
@@ -29,17 +31,17 @@ export getUserList = ->
     return list
 
 ############################################################
-export getUserById = (userId) ->
-    log "getUserById"
+export getUser = (userId) ->
+    log "getUser"
     user = uData.getUserById(userId)
     olog  { user }
     if !user? then return "User does not exist!"
     return {
         userId: userId
         email: user.email
-        subscribedUntil: user.subscribedUntil || null
-        isTester: user.isTester || false
-        lastInteraction: user.lastInteraction || null
+        subscribedUntil: user.subscribedUntil
+        isTester: user.isTester 
+        lastInteraction: user.lastInteraction
     }
 
 
@@ -48,9 +50,9 @@ export updateUser = (args) ->
     log "updateUser"
     user = uData.getUserById(args.userId)
     if !user? then return "User does not exist!"
-    user.email = args.email
-    user.subscribedUntil = args.subscribedUntil
-    user.isTester = args.isTester
+    if args.email? then user.email = args.email
+    if args.subscribedUntil? then user.subscribedUntil = args.subscribedUntil
+    if args.isTester? then user.isTester = args.isTester
     uData.setUserData(args.userId, user)
     return
 
@@ -59,9 +61,9 @@ export createUser = (args) ->
     log "createUser"
     user = uData.getNewUserObject()
     user.email = args.email
-    user.subscribedUntil = args.subscribedUntil
-    user.isTester = args.isTester
-    user.passwordSHH = await sha256(args.passwordSH)
+    user.subscribedUntil = args.subscribedUntil || 0
+    user.isTester = args.isTester || false
+    user.passwordSHH = await authUtl.getPasswordHash(args.passwordSH)
     userId = uData.addNewUser(user)
     return userId
 
@@ -74,6 +76,11 @@ export deleteUser = (userId) ->
 
 
 ############################################################
-export registerNewUser = (args) ->
-    log "registerNewUser"
-    return
+export finalizeUserRegistration = (email, pwdSH) ->
+    log "finalizeUserRegistration"
+    user = uData.getNewUserObject()
+    user.email = email
+    user.passwordSHH = await authUtl.getPasswordHash(pwdSH)
+    user.lastInteraction = Date.now()
+    return uData.addNewUser(user)
+    

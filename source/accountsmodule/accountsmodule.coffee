@@ -10,11 +10,12 @@ import { createLogFunctions } from "thingy-debug"
 import { makeForgetable } from "memory-decay"
 
 ############################################################
+import * as cfg from "./configmodule.js"
 import * as auth from "./authutilmodule.js"
-# import { sha256 } from "secret-manager-crypto-utils"
 
 ############################################################
 import * as uData from "./userdatamodule.js"
+import * as usrM from "./usermanagementmodule.js"
 import { 
     sendRegistrationMail, sendPasswordResetMail 
 } from "./mailcreatormodule.js"
@@ -29,7 +30,7 @@ codesToAction = Object.create(null)
 
 
 ############################################################
-export initialized = () ->
+export initialize = ->
     makeForgetable(codesToAction, 600_000) # ->10 minutes
     return
 
@@ -64,33 +65,46 @@ export passwordReset = (email) ->
     return
 
 
+############################################################
 export register = (email) ->
     log "register"
     log email
     user = uData.getUserByEmail(email)
     if user? then return ## already exists
     ## TODO figure out if I should turn it into a password reset
+    
+    action = Object.create(null)
+    action.type = "register"
+    action.userEmail = email
 
-    ## TODO create registrationLink
-    link = "https://dotv.ee/?code=f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5"
+    code = auth.randomCodeGenHex(16)
+    while(codesToAction[code]?)
+        code = auth.randomCodeGenHex(16)
+
+    codesToAction[code] = action
+    codesToAction.letForget(code)   
+
+    link = "#{cfg.urlSentinelDashboard}?action=register&code=#{code}"
     sendRegistrationMail(email, link)
     return
 
+############################################################
 export finalizeAction = (args) ->
     log "finalizeAction"
-    errorMessage = "Code was Invalid!"
-
     code = args.code
-    email = args.params[0]
-    pwdSH = args.params[1]
+    type = args.type
+    email = args.email
+    pwdSH = args.passwordSH
 
-    action = codesToAction[code]
-    if !action? then return errorMessage
-    
+    errorMessage = "Problem!"
+
+    actionObj = codesToAction[code]
+    if !actionObj? then return errorMessage
+    if actionObj.type != type then return errorMessage    
+    if actionObj.userEmail != email then return errorMessage
+
+    # valid reqest, we may finalize the action and delete it in the map
     delete codesToAction[code]
-    if action.email != email then return errorMessage
-
-    ## TODO implement
-    # if action.type = "register"
+    usrM.finalizeUserRegistration(email, pwdSH)
     return
 

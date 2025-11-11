@@ -62,7 +62,12 @@ sciAdd("requestPasswordReset", passwordReset, {
 ############################################################
 sciAdd("finalizeAction", finalizeAction, {
     bodySizeLimit: 360,
-    argsSchema: { code: STRINGHEX32, params:[ STRINGEMAIL, STRINGHEX64 ] }
+    argsSchema: { 
+        code: STRINGHEX32, 
+        type:STRING, 
+        email: STRINGEMAIL, 
+        passwordSH: STRINGHEX64 
+    }
 })
 # 204 or 422 "Code was Invalid!" 
 

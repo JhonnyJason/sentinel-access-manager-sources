@@ -7,9 +7,9 @@ import { createLogFunctions } from "thingy-debug"
 ############################################################
 #region Modules from the Environment
 import {
-    STRINGEMAIL, STRINGHEX64, STRINGHEX32, ARRAY, NUMBERORNULL,
+    STRINGEMAIL, STRINGHEX64, STRINGHEX32, ARRAY, NUMBER,
     STRINGEMAILORNOTHING, NUMBERORNOTHING, BOOLEANORNOTHING,
-    createValidator
+    BOOLEAN, createValidator
 } from "thingy-schema-validate"
 
 ############################################################
@@ -46,16 +46,16 @@ sciAdd("getUserList", usrM.getUserList, {
 #Response is always 200 containing an Array
 
 ############################################################
-sciAdd("getUser", usrM.getUserById, {
+sciAdd("getUser", usrM.getUser, {
     bodySizeLimit: 600, 
     authOption: signatureAuth,
-    argsSchema: STRINGHEX32 
+    argsSchema: STRINGHEX32
     resultSchema: {
         userId: STRINGHEX32,
         email: STRINGEMAIL, 
-        subscribedUntil: NUMBERORNULL,
-        isTester: BOOLEANORNOTHING,
-        lastInteraction: NUMBERORNULL
+        subscribedUntil: NUMBER,
+        isTester: BOOLEAN,
+        lastInteraction: NUMBER
     }
 })
 #Response is either 200 with user data or '422 "User does not exist!"'

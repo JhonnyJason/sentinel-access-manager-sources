@@ -6,6 +6,13 @@ import { createLogFunctions } from "thingy-debug"
 
 ############################################################
 import * as secUtl from "secret-manager-crypto-utils"
+import * as crypto from "node:crypto"
+import * as tbut from "thingy-byte-utils"
+
+############################################################
+export randomCodeGenHex = (byteLength = 16) ->
+    buf = crypto.randomBytes(byteLength)
+    return tbut.bytesToHex(buf)
 
 ############################################################
 export getPasswordHash = (input) ->

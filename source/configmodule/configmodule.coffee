@@ -22,6 +22,7 @@ export emailPassword = localCfg.emailPassword || "none"
 export emailUsername = localCfg.emailUsername || "none"
 export emailServer = localCfg.emailServer || "none"
 export emailPort = localCfg.emailPort || 0
+export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://localhost:3000"
 
 ############################################################
 export authCodeValidityMS = 7200000

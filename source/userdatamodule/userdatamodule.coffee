@@ -6,8 +6,15 @@ import { createLogFunctions } from "thingy-debug"
 
 ############################################################
 #region Modules from the Environment
+
+############################################################
 import * as dataCache from "cached-persistentstate"
+import {
+    STRINGEMAIL, STRINGHEX64, NUMBER, BOOLEAN, createValidator
+} from "thingy-schema-validate"
+############################################################
 import * as serviceCrypto from "./servicekeysmodule.js"
+import * as authUtl from "./authutilmodule.js"
 
 #endregion
 
@@ -19,13 +26,15 @@ emailToUser = Object.create(null)
 
 ############################################################
 ## UserData Schema
-# {
-#     email: STRINGEMAIL
-#     passwordSHH: STRINGHEX64
-#     subscribedUntil: NUMBER
-#     isTester: BOOLEAN
-#     latestInteraction: NUMBER
-# }
+userDataSchema = {
+    email: STRINGEMAIL
+    passwordSHH: STRINGHEX64
+    subscribedUntil: NUMBER
+    isTester: BOOLEAN
+    lastInteraction: NUMBER
+}
+## Validation Function ;-)
+validateUserObj = createValidator(userDataSchema)
 
 ############################################################
 export initialize = ->
@@ -77,7 +86,7 @@ export getNewUserObject = -> {
     passwordSHH: ""
     subscribedUntil: 0
     isTester: false
-    latestInteraction: 0
+    lastInteraction: 0
 }
 
 ############################################################
@@ -93,10 +102,22 @@ export getUserByEmail = (email) ->
     return emailToUser[email]
 
 ############################################################
-export addNewUser = (data) ->
-    log "addNewUser not implemented yet!"
-    ##TODO create new userId
-    return "11111111111111111111111111111111"
+export addNewUser = (user) ->
+    log "addNewUser"
+    err = validateUserObj(user)
+    if err
+        console.error("addNewUser: invalid user object! (#{err})")
+        return "deaddeaddeaddeaddeaddeaddeaddead"
+
+    newUserId = authUtl.randomCodeGenHex(16)
+    while(userData[newUserId]?)
+        newUserId = authUtl.randomCodeGenHex(16)
+    
+    userData[newUserId] = user
+    
+    try await signAndSaveUserDataStore()
+    catch err then console.log("Issue on saving new User!\n#{err.message}")
+    return
 
 ############################################################
 export setUserData = (userId, data) ->

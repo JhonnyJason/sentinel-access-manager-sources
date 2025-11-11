@@ -48,8 +48,13 @@ createValidator = null
 ############################################################
 terminateServer = ->
     return unless serverObj?
-    serverObj.close((() -> console.log("Gracefully Terminated. Bye!")))
-    serverObj = null
+
+    onClosed = ->
+        console.log("Gracefully Terminated. Bye!")
+        process.exit(0)
+        return
+    
+    serverObj.close(onClosed)
     return
 
 ############################################################
