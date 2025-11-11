@@ -19,6 +19,8 @@ import "./usersci.js"
 ############################################################
 export prepareAndExpose = ->
     log "prepareAndExpose"
-    options = { }
-    sciStartServer(options)
+    listenOn = "systemd"
+    options = { listenOn }
+    try await sciStartServer(options)
+    catch err then console.error(err.message)
     return

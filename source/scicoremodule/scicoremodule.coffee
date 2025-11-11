@@ -27,6 +27,8 @@ defaultMaxHeaderSize = 2_048
 #region Local Variables
 globalBodySizeLimit = 0
 
+listeningMode = ""
+
 ############################################################
 serverObj = null
 
@@ -41,9 +43,69 @@ createValidator = null
 
 
 ############################################################
-handleSocketActivation = ->
-    log "handleSocketActivation"
+#region Allmighty Server Listening and Termination
+
+############################################################
+terminateServer = ->
+    return unless serverObj?
+    serverObj.close((() -> console.log("Gracefully Terminated. Bye!")))
+    serverObj = null
     return
+
+############################################################
+setServerListening = (p) ->
+    ## Always use provided socket on Socket Activation
+    listenFds = parseInt(process.env.LISTEN_FDS)
+    listenPid = parseInt(process.env.LISTEN_PID)
+    ourPid = process.pid
+
+    if ourPid  == listenPid and listenFds > 0
+        return handleSocketActivation(p.backlog)
+    
+    ## Env dictates SocketMode but not Socket
+    if process.env.SOCKETMODE == "true"
+        throw new Error("No Socket for SOCKETMODE!")
+
+    ## simply Overwrite when we have a valid env.PORT
+    envPort = parseInt(process.env.PORT)
+    if envPort > 0 then p.listenOn = envPort
+    
+    ## no Env. but "systemd" set -> SocketMode but no socket :(
+    if p.listenOn == "systemd" 
+        throw new Error("option systemd failed: no Socket!")
+    
+    return portUnixListen(p) ## otherwise go with what is configured
+
+############################################################
+handleSocketActivation = (backlog) ->
+    log "handleSocketActivation"
+    cb = null
+    listening = new Promise( ((res) -> cb = res) )
+    listeningMode = "SystemD FD 3"
+    ## always use fd 3 for  Socket Activation - ignore the rest here
+    handle = {fd: 3}
+    serverObj = serverObj.listen(handle, backlog, cb)
+    return listening
+
+############################################################
+portUnixListen = (p) ->
+    cb = null
+    listening = new Promise( ((res) -> cb = res) )
+    
+    options = { backlog: p.backlog }
+    
+    if typeof p.listenOn == "string" 
+        options.path = p.listenOn
+        listeningMode = "unix: #{options.path}"
+
+    else 
+        options.port = p.listenOn
+        listeningMode = "tcp: #{options.port}"
+
+    serverObj = serverObj.listen(options, cb)
+    return listening
+
+#endregion
 
 ############################################################
 #region Upgrade/Error Handlers
@@ -1520,12 +1582,18 @@ export sciStartServer = (o) ->
     serverObj.on("upgrade", conectionUpgradeHandler)
     serverObj.on("clientError", clientErrorHandler)
 
-    if process.env.SOCKETMODE then return handleSocketActivation()
-    if process.env.PORT then return serverObj.listen(process.env.PORT)
+    ## default backlog is undefined
+    if typeof o.backlog == "number" then backlog = o.backlog
+    ## default listenOn is 3333
+    listenOn = o.listenOn || 3333
 
-    if o.listenOn == "systemd" then return handleSocketActivation()
-    if !o.listenOn? then o.listenOn = 3333
+    listenParams = { backlog, listenOn }
+    await setServerListening(listenParams)
+    olog { listeningMode }
 
-    return serverObj.listen(o.listen)
+    ## Try to terminate gracefully
+    process.on("SIGTERM", terminateServer)
+    process.on("SIGINT", terminateServer)
+    return 
         
 #endregion
