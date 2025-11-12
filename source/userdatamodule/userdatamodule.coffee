@@ -114,7 +114,8 @@ export addNewUser = (user) ->
         newUserId = authUtl.randomCodeGenHex(16)
     
     userData[newUserId] = user
-    
+    emailToUser[user.email] = user
+
     try await signAndSaveUserDataStore()
     catch err then console.log("Issue on saving new User!\n#{err.message}")
     return
@@ -130,7 +131,12 @@ export setUserData = (userId, data) ->
 ############################################################
 export removeUserData = (userId) ->
     log "removeUserData"
-    if userData[userId]? then delete userData[userId] 
+    return unless userData[userId]?
+    
+    email = userData[userId].email
+    delete userData[userId] 
+    delete emailToUser[email]
+
     try await signAndSaveUserDataStore()
     catch err then log err
     return

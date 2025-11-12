@@ -17,7 +17,7 @@ import * as auth from "./authutilmodule.js"
 import * as uData from "./userdatamodule.js"
 import * as usrM from "./usermanagementmodule.js"
 import { 
-    sendRegistrationMail, sendPasswordResetMail 
+    sendRegistrationMail, sendPasswordResetMail, sendAlreadyRegisteredMail 
 } from "./mailcreatormodule.js"
 
 #endregion
@@ -68,11 +68,12 @@ export passwordReset = (email) ->
 ############################################################
 export register = (email) ->
     log "register"
-    log email
     user = uData.getUserByEmail(email)
-    if user? then return ## already exists
-    ## TODO figure out if I should turn it into a password reset
     
+    if user? ## Notify users they already have an account 
+        sendAlreadyRegisteredMail(email)
+        return
+
     action = Object.create(null)
     action.type = "register"
     action.userEmail = email
