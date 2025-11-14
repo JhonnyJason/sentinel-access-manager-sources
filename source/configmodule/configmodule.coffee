@@ -22,7 +22,12 @@ export emailPassword = localCfg.emailPassword || "none"
 export emailUsername = localCfg.emailUsername || "none"
 export emailServer = localCfg.emailServer || "none"
 export emailPort = localCfg.emailPort || 0
-export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://localhost:3000"
+export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://sentinel-dashboard-dev.dotv.ee"
+export urlSentinelPassword = localCfg.urlSentinelPassword || "https://sentinel-password-dev.dotv.ee"
+
+## local development
+# export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://localhost:3002"
+# export urlSentinelPassword = localCfg.urlSentinelPassword || "https://localhost:3000"
 
 ############################################################
 export authCodeValidityMS = 7200000

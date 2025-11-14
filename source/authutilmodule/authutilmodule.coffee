@@ -19,7 +19,7 @@ export getPasswordHash = (input) ->
     log "getPasswordHash"
     return await secUtl.sha256(input)
 
-export verifyPassword = (pwdSH, pwdSSH) ->
+export verifyPassword = (pwdSH, pwdSHH) ->
     toCheckSHH = await secUtl.sha256(pwdSH)
     if pwdSHH == toCheckSHH then return
     else return "Incorrect Password!" 

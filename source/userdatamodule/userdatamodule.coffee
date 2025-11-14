@@ -117,7 +117,7 @@ export addNewUser = (user) ->
     emailToUser[user.email] = user
 
     try await signAndSaveUserDataStore()
-    catch err then console.log("Issue on saving new User!\n#{err.message}")
+    catch err then console.log("Saving DataStore @addNewUser failed!\n"+err.message)
     return
 
 ############################################################
@@ -125,7 +125,7 @@ export setUserData = (userId, data) ->
     log "setUserData"
     userData[userId] = data
     try await signAndSaveUserDataStore()
-    catch err then log err
+    catch err then console.error("Saving DataStore @setUserData failed!\n"+err.message)
     return
 
 ############################################################
@@ -138,5 +138,12 @@ export removeUserData = (userId) ->
     delete emailToUser[email]
 
     try await signAndSaveUserDataStore()
-    catch err then log err
+    catch err then console.error("Saving DataStore @removeUserData failed!\n"+err.message)
+    return
+
+############################################################
+export save = ->
+    log "save"
+    try await signAndSaveUserDataStore()
+    catch err then console.error("Saving DataStore @save failed!\n"+err.message)
     return

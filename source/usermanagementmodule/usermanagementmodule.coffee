@@ -84,3 +84,15 @@ export finalizeUserRegistration = (email, pwdSH) ->
     user.lastInteraction = Date.now()
     return uData.addNewUser(user)
     
+############################################################
+export finalizePasswordReset = (email, pwdSH) ->
+    log "finalizePasswordReset"
+    user = uData.getUserByEmail(email)
+    if !user? 
+        console.error("Finalizing pwReset: User for #{email} not Found!")
+        return
+        
+    user.passwordSHH = await authUtl.getPasswordHash(pwdSH)
+    user.lastInteraction = Date.now()
+    uData.save()
+    return 
