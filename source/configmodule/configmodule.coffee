@@ -6,7 +6,9 @@ import fs from "fs"
 import path from "path"
 
 try
-    configPath = path.resolve(process.cwd(), "./.config.json")
+    ## local development
+    # configPath = path.resolve(process.cwd(), "./.config.json")
+    configPath = path.resolve(process.cwd(), "../.config.json")
     localCfgString = fs.readFileSync(configPath, 'utf8')
     localCfg = JSON.parse(localCfgString)
 catch err
