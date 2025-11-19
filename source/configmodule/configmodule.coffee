@@ -30,7 +30,7 @@ export emailServer = localCfg.emailServer || "none"
 export emailPort = localCfg.emailPort || 0
 export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://sentinel-dashboard-dev.dotv.ee"
 export urlSentinelPassword = localCfg.urlSentinelPassword || "https://sentinel-password-dev.dotv.ee"
-export urlSentinelBackend = localCfg.urlSentinelBackend || "http://localhost:3333"
+export urlSentinelBackend = localCfg.urlSentinelBackend || "http://sentinel-backend.dotv.ee"
 export snitchSocket = localCfg.snitchSocket || "/run/bugsnitch.sk"
 
 ## local development
