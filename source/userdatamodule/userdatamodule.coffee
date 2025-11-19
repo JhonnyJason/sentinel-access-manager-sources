@@ -10,7 +10,8 @@ import { createLogFunctions } from "thingy-debug"
 ############################################################
 import * as dataCache from "cached-persistentstate"
 import {
-    STRINGEMAIL, STRINGHEX64, NUMBER, BOOLEAN, createValidator
+    STRINGEMAIL, STRINGHEX64, STRINGHEX64ORNOTHING, NUMBER, 
+    BOOLEAN, createValidator
 } from "thingy-schema-validate"
 ############################################################
 import * as serviceCrypto from "./servicekeysmodule.js"
@@ -20,6 +21,7 @@ import * as authUtl from "./authutilmodule.js"
 
 
 ############################################################
+#region Local Variables
 userDataStore = Object.create(null)
 userData = Object.create(null)
 emailToUser = Object.create(null)
@@ -29,16 +31,25 @@ emailToUser = Object.create(null)
 userDataSchema = {
     email: STRINGEMAIL
     passwordSHH: STRINGHEX64
+    xCode: STRINGHEX64ORNOTHING
     subscribedUntil: NUMBER
     isTester: BOOLEAN
     lastInteraction: NUMBER
 }
 ## Validation Function ;-)
-validateUserObj = createValidator(userDataSchema)
+validateUserObj = null
+
+############################################################
+saving = false
+delayedSave = false
+
+#endregion
 
 ############################################################
 export initialize = ->
     log "initialize"
+    validateUserObj = createValidator(userDataSchema)
+
     userDataStore = dataCache.load("userDataStore")
     
     if userDataStore.meta?
@@ -71,13 +82,23 @@ validateUserDataStore = ->
 
 signAndSaveUserDataStore = ->
     log "signAndSaveUserDataStore"
-    userDataStore.meta.serverSig = ""
-    userDataStore.meta.serverPub = serviceCrypto.getPublicKeyHex()
-    userDataStore.encrypted = await serviceCrypto.encrypt(userData)
-    jsonString = JSON.stringify(userDataStore)
-    signature = await serviceCrypto.sign(jsonString)
-    userDataStore.meta.serverSig = signature
-    dataCache.save("userDataStore")
+    if saving and !delayedSave then delayedSave = true
+    if saving then return
+
+    delayedSave = false ## does not matter but keeps finally block cleaner
+    saving = true
+    try
+        userDataStore.meta.serverSig = ""
+        userDataStore.meta.serverPub = serviceCrypto.getPublicKeyHex()
+        userDataStore.encrypted = await serviceCrypto.encrypt(userData)
+        jsonString = JSON.stringify(userDataStore)
+        signature = await serviceCrypto.sign(jsonString)
+        userDataStore.meta.serverSig = signature
+        dataCache.save("userDataStore")
+    catch err then bs.report("@signAndSaveUserDataStore: "+err.message)
+    finally
+        saving = false
+        if delayedSave then signAndSaveUserDataStore()
     return
 
 ############################################################
@@ -116,16 +137,14 @@ export addNewUser = (user) ->
     userData[newUserId] = user
     emailToUser[user.email] = user
 
-    try await signAndSaveUserDataStore()
-    catch err then console.log("Saving DataStore @addNewUser failed!\n"+err.message)
+    signAndSaveUserDataStore()
     return
 
 ############################################################
 export setUserData = (userId, data) ->
     log "setUserData"
     userData[userId] = data
-    try await signAndSaveUserDataStore()
-    catch err then console.error("Saving DataStore @setUserData failed!\n"+err.message)
+    signAndSaveUserDataStore()
     return
 
 ############################################################
@@ -137,13 +156,11 @@ export removeUserData = (userId) ->
     delete userData[userId] 
     delete emailToUser[email]
 
-    try await signAndSaveUserDataStore()
-    catch err then console.error("Saving DataStore @removeUserData failed!\n"+err.message)
+    signAndSaveUserDataStore()
     return
 
 ############################################################
 export save = ->
     log "save"
-    try await signAndSaveUserDataStore()
-    catch err then console.error("Saving DataStore @save failed!\n"+err.message)
+    signAndSaveUserDataStore()
     return

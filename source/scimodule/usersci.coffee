@@ -17,8 +17,10 @@ import { sciAdd, setValidatorCreator } from "./scicoremodule.js"
 setValidatorCreator(createValidator)
 
 ############################################################
-import { 
-    login, register, passwordReset, finalizeAction
+import {
+    login, loginX, logout, refreshSession, 
+    register, passwordReset, finalizeAction,
+    updateEmail, updatePassword, deleteAccount
 } from "./accountsmodule.js"
 
 ############################################################
@@ -41,9 +43,48 @@ sciAdd("login", login, {
         email: STRINGEMAIL,
         passwordSH: STRINGHEX64
     },
-    resultSchema: { authCode: STRINGHEX64, validUntil: NUMBER }
+    resultSchema: { 
+        authCode: STRINGHEX32, 
+        validUntil: NUMBER,  
+        passwordSHX: STRINGHEX64    
+    }
 })
 # 200 with payload - expected Error: Invalid credentials!
+
+############################################################
+sciAdd("loginX", loginX, {
+    bodySizeLimit: 360,
+    argsSchema: {
+        email: STRINGEMAIL,
+        passwordSHX: STRINGHEX64
+    },
+    resultSchema: {
+        authCode: STRINGHEX32, 
+        validUntil: NUMBER,  
+        passwordSHX: STRINGHEX64    
+    }
+})
+# 200 with payload - expected Error: Invalid credentials!
+
+############################################################
+sciAdd("logout", logout, {
+    bodySizeLimit: 34, 
+    argsSchema: STRINGHEX32
+})
+# always 204 - don't give away anything ;-)
+
+############################################################
+sciAdd("refreshSession", refreshSession, {
+    bodySizeLimit: 34, 
+    argsSchema: STRINGHEX32,
+    resultSchema: {
+        authCode: STRINGHEX32, 
+        validUntil: NUMBER
+    }
+})
+# always 204 - don't give away anything ;-)
+
+
 
 ############################################################
 sciAdd("register", register, {
@@ -70,5 +111,39 @@ sciAdd("finalizeAction", finalizeAction, {
     }
 })
 # 204 or 422 "Code was Invalid!" 
+
+
+
+############################################################
+sciAdd("updateEmail", updateEmail, {
+    bodySizeLimit: 600,
+    argsSchema: {
+        newEmail: STRINGEMAIL,
+        email: STRINGEMAIL,
+        passwordSH: STRINGHEX64
+    }
+})
+# 204 or 422 "Invalid Credentials!" 
+
+############################################################
+sciAdd("updatePassword", updatePassword, {
+    bodySizeLimit: 420,
+    argsSchema: {
+        newPasswordSH: STRINGHEX64,
+        email: STRINGEMAIL,
+        passwordSH: STRINGHEX64
+    }
+})
+# 204 or 422 "Invalid Credentials!" 
+
+############################################################
+sciAdd("deleteAccount", deleteAccount, {
+    bodySizeLimit: 360,
+    argsSchema: {
+        email: STRINGEMAIL,
+        passwordSH: STRINGHEX64
+    }
+})
+# 204 or 422 "Invalid Credentials!" 
 
 #endregion

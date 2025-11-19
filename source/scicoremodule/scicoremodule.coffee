@@ -413,6 +413,11 @@ respondWithResult = (response, jsonString) ->
 handlerCreators = Object.create(null)
 
 ############################################################
+checkForValidErrorObject = (obj) ->
+    if typeof obj == "object" and obj.error? then return
+    return "No Error Object!"
+
+############################################################
 #region All Implementation
 # allImplementations = (route, func, conf) ->
 #     ## authOption is provided
@@ -608,6 +613,7 @@ handlerCreators["0000"] = (route, func, conf) -> #0
     # Nothing is provided
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
         ## bodyString must be empty string -> auth and args as well
@@ -657,6 +663,7 @@ handlerCreators["1000"] = (route, func, conf) -> #1 aO
         throw new Error("authOption not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -706,6 +713,7 @@ handlerCreators["0100"] = (route, func, conf) -> #2 aS
         throw new Error("validateArgs is not a function @#{route}!")
     
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with argsSchema
         err = validateArgs(ctx.args)
@@ -756,6 +764,7 @@ handlerCreators["1100"] = (route, func, conf) -> #3 aO + aS
         throw new Error("validateArgs is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -808,6 +817,7 @@ handlerCreators["0010"] = (route, func, conf) -> #4 rS
         throw new Error("validateResult is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
         ## bodyString must be empty string -> auth and args as well
@@ -864,6 +874,7 @@ handlerCreators["1010"] = (route, func, conf) -> #5 a0 + rS
         throw new Error("validateResult is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -919,6 +930,7 @@ handlerCreators["0110"] = (route, func, conf) -> #6 aS + rS
         throw new Error("validateResult is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with argsSchema
         # log "@handler 0110 of #{route}"
@@ -978,6 +990,7 @@ handlerCreators["1110"] = (route, func, conf) -> #7 aO + aS + rS
         throw new Error("validateResult is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -1030,6 +1043,7 @@ handlerCreators["0001"] = (route, func, conf) -> #8 rA
         throw new Error("addResponseAuth is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
         ## bodyString must be empty string -> auth and args as well
@@ -1090,6 +1104,7 @@ handlerCreators["1001"] = (route, func, conf) -> #9 aO + rA
         throw new Error("addResponseAuth is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -1150,6 +1165,7 @@ handlerCreators["0101"] = (route, func, conf) -> #10 aS + rA
         throw new Error("addResponseAuth is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with argsSchema
         err = validateArgs(ctx.args)
@@ -1211,6 +1227,7 @@ handlerCreators["1101"] = (route, func, conf) -> #11 aO + aS + rA
         throw new Error("addResponseAuth is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -1272,6 +1289,7 @@ handlerCreators["0011"] = (route, func, conf) -> #12 rS + rA
         throw new Error("addResponseAuth is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 00xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Expectation without authOption or argsSchema -> no Body!
         ## bodyString must be empty string -> auth and args as well
@@ -1341,6 +1359,7 @@ handlerCreators["1011"] = (route, func, conf) -> #13 aO + rS + rA
         throw new Error("addResponseAuth is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 10xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)
@@ -1408,6 +1427,7 @@ handlerCreators["0111"] = (route, func, conf) -> #14 aS + rS + rA
         throw new Error("addResponseAuth is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 01xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with argsSchema
         err = validateArgs(ctx.args)
@@ -1477,6 +1497,7 @@ handlerCreators["1111"] = (route, func, conf) -> #15 aO + aS + rS + rA
         throw new Error("addResponseAuth is not a function @#{route}!")
 
     handlerFunction = (req, res, ctx) ->
+        olog ctx
         ## 11xx - - - - - - - - - - - - - - - - - - - - - - - - - - -
         ## Execution with authOption
         err = await authenticateRequest(req, ctx)

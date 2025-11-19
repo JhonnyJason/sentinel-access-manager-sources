@@ -1,9 +1,12 @@
 ############################################################
 localCfg = Object.create(null)
+
 ############################################################
 #region Read localCfg
 import fs from "fs"
 import path from "path"
+############################################################
+import * as bs from "./bugsnitch.js"
 
 try
     ## local development
@@ -12,8 +15,9 @@ try
     localCfgString = fs.readFileSync(configPath, 'utf8')
     localCfg = JSON.parse(localCfgString)
 catch err
-    console.error("Local Config File could not be read or parsed!")
-    console.error(err.message)
+    errorMessage = "@configmodule: localCfg could not be read or parsed!"
+    errorMessage = "\n "+err.message
+    bs.report(errorMessage)
 
 #endregion
 
@@ -26,13 +30,16 @@ export emailServer = localCfg.emailServer || "none"
 export emailPort = localCfg.emailPort || 0
 export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://sentinel-dashboard-dev.dotv.ee"
 export urlSentinelPassword = localCfg.urlSentinelPassword || "https://sentinel-password-dev.dotv.ee"
+export urlSentinelBackend = localCfg.urlSentinelBackend || "http://localhost:3333"
+export snitchSocket = localCfg.snitchSocket || "/run/bugsnitch.sk"
 
 ## local development
 # export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://localhost:3002"
 # export urlSentinelPassword = localCfg.urlSentinelPassword || "https://localhost:3000"
 
 ############################################################
-export authCodeValidityMS = 7200000
+export authCodeValidityMS = 7_200_000 # 2h
+export actionLiveTimeMS = 600_000 # 10m
 
 ############################################################
 export persistentStateOptions = {

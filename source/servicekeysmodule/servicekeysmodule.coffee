@@ -40,6 +40,7 @@ export initialize = ->
     }
     cryptoNode = new ThingyCryptoNode(options)
     # olog serviceState
+    olog cryptoNode
     setReady(true)
     return
 
