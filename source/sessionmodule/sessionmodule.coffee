@@ -80,10 +80,10 @@ sendPost = (url, bodyString) ->
     
     if response.ok then return
 
-    try 
+    try
         console.error("Response was not OK! (#{response.status})")
         errorMsg = await response.text()
-        console.error(errorMsg)
+        bs.report(errorMsg)
     catch err then bs.report("@sessionmodule.sendPost - parsing error: "+ err.message)
     return
 
