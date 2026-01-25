@@ -31,6 +31,7 @@ export emailPort = localCfg.emailPort || 0
 export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://sentinel-dashboard-dev.dotv.ee"
 export urlSentinelPassword = localCfg.urlSentinelPassword || "https://sentinel-password-dev.dotv.ee"
 export urlSentinelBackend = localCfg.urlSentinelBackend || "https://sentinel-backend.dotv.ee"
+export urlSentinelDatahub = localCfg.urlSentinelDatahub || "https://sentinel-datahub.dotv.ee"
 export snitchSocket = localCfg.snitchSocket || "/run/bugsnitch.sk"
 
 ## local development

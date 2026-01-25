@@ -32,6 +32,7 @@ noSigKey = '"\'\\'
 
 ############################################################
 urlBackend = "http://localhost:3333"
+urlDatahub = "http://localhost:3344"
 nonce = Math.floor(Math.random() * 123456)
 
 ############################################################
@@ -49,7 +50,8 @@ export initialize = (c) ->
     log "initialize"
     if c.authCodeValidityMS? then authCodeLifeMS = c.authCodeValidityMS
     if c.urlSentinelBackend? then urlBackend = c.urlSentinelBackend
-    
+    if c.urlSentinelDatahub? then urlDatahub = c.urlSentinelDatahub
+
     setInterval(cleanSessions, cleanInterval) # ~45s
     return
 
@@ -96,7 +98,11 @@ setAccess = (authCode, ttlMS) ->
 
     url = urlBackend+'/grantAccess'
     try await sendPost(url, bodyString)
-    catch err then bs.report("@setAccess error on sendPost: "+err.message)
+    catch err then bs.report("@setAccess error on sendPost to Backend: "+err.message)
+
+    url = urlDatahub+'/grantAccess'
+    try await sendPost(url, bodyString)
+    catch err then bs.report("@setAccess error on sendPost to Datahub: "+err.message)
     return
 
 unsetAccess = (authCode) ->
@@ -106,7 +112,11 @@ unsetAccess = (authCode) ->
 
     url = urlBackend+'/revokeAccess'
     try await sendPost(url, bodyString)
-    catch err then bs.report("@unsetAccess error on sendPost: "+err.message)
+    catch err then bs.report("@unsetAccess error on sendPost to Datahub: "+err.message)
+
+    url = urlDatahub+'/revokeAccess'
+    try await sendPost(url, bodyString)
+    catch err then bs.report("@unsetAccess error on sendPost to Datahub: "+err.message)
     return
 
 ############################################################
