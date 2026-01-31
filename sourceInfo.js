@@ -6,9 +6,10 @@ module.exports = {
             "mustache": "^4.2.0",
             "nodemailer": "^7.0.10",
             "secret-manager-crypto-utils": "^0.3.1",
+            "thingy-byte-utils": "^0.0.8",
             "thingy-crypto-node": "^0.0.2",
             "thingy-schema-validate": "^0.0.7",
-            "validatabletimestamp": "^0.0.4"
+            "validatabletimestamp": "^0.0.5"
         }
     }
 }
