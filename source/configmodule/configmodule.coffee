@@ -29,6 +29,7 @@ export emailUsername = localCfg.emailUsername || "none"
 export emailServer = localCfg.emailServer || "none"
 export emailPort = localCfg.emailPort || 0
 export urlSentinelDashboard = localCfg.urlSentinelDashboard || "https://sentinel-dashboard-dev.dotv.ee"
+export urlAdminDashboard = localCfg.urlAdminDashboard || "https://sentinel-admin.dotv.ee"
 export urlSentinelPassword = localCfg.urlSentinelPassword || "https://sentinel-password-dev.dotv.ee"
 export urlSentinelBackend = localCfg.urlSentinelBackend || "https://sentinel-backend.dotv.ee"
 export urlSentinelDatahub = localCfg.urlSentinelDatahub || "https://sentinel-datahub.dotv.ee"

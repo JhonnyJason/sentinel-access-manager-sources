@@ -48,7 +48,9 @@ export initialize = ->
 export isNotGod = (keyHex) -> return keyHex != godKeyHex
 
 ############################################################
-export getPublicKeyHex = -> cryptoNode.id
+export getPublicKeyHex = -> 
+    await ready
+    return cryptoNode.id
 
 ############################################################
 export sign = (content) ->
@@ -56,7 +58,7 @@ export sign = (content) ->
     return await cryptoNode.sign(content)
 
 ############################################################
-export verify = (sigHex, content) ->
+export isValidSignature = (sigHex, content) ->
     await ready
     return await cryptoNode.verify(sigHex, content)
 

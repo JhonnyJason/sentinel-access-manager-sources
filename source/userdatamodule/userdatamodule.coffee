@@ -8,98 +8,49 @@ import { createLogFunctions } from "thingy-debug"
 #region Modules from the Environment
 
 ############################################################
-import * as dataCache from "cached-persistentstate"
 import {
     STRINGEMAIL, STRINGHEX64, STRINGHEX64ORNOTHING, NUMBER, 
     BOOLEAN, createValidator
 } from "thingy-schema-validate"
+
 ############################################################
-import * as serviceCrypto from "./servicekeysmodule.js"
+import * as seStore from "./signencstoremodule.js"
 import * as authUtl from "./authutilmodule.js"
 
 #endregion
 
-
 ############################################################
 #region Local Variables
-userDataStore = Object.create(null)
+STOREKEY = "userData"
+
+############################################################
 userData = Object.create(null)
 emailToUser = Object.create(null)
 
 ############################################################
-## UserData Schema
-userDataSchema = {
+## UserData Validator
+validateUserObj = createValidator({
     email: STRINGEMAIL
     passwordSHH: STRINGHEX64
     xCode: STRINGHEX64ORNOTHING
     subscribedUntil: NUMBER
     isTester: BOOLEAN
     lastInteraction: NUMBER
-}
-## Validation Function ;-)
-validateUserObj = null
-
-############################################################
-saving = false
-delayedSave = false
+})
 
 #endregion
 
 ############################################################
 export initialize = ->
     log "initialize"
-    validateUserObj = createValidator(userDataSchema)
-
-    userDataStore = dataCache.load("userDataStore")
     
-    if userDataStore.meta?
-        try await validateUserDataStore()
-        catch err
-            console.error("Corrupted userDataStore!\n#{err.message}")
-            process.exit(78)
-    else userDataStore.meta = Object.create(null)
-    
-    if userDataStore.encrypted?
-        try userData = await serviceCrypto.decrypt(userDataStore.encrypted)
-        catch err then log err
-
+    userData = await seStore.load(STOREKEY)
     olog userData
+
     for id,data of userData
         emailToUser[data.email] = data
     return 
 
-############################################################
-validateUserDataStore = ->
-    log "validateUserDataStore"
-    meta = userDataStore.meta
-    signature = meta.serverSig
-    if !signature then throw new Error("No signature in userDataStore.meta !")
-    meta.serverSig = ""
-    userDataStoreString = JSON.stringify(userDataStore)
-    meta.serverSig = signature
-    if(await serviceCrypto.verify(signature, userDataStoreString)) then return
-    else throw new Error("Invalid Signature in authCodestore.meta !")
-
-signAndSaveUserDataStore = ->
-    log "signAndSaveUserDataStore"
-    if saving and !delayedSave then delayedSave = true
-    if saving then return
-
-    delayedSave = false ## does not matter but keeps finally block cleaner
-    saving = true
-    try
-        userDataStore.meta.serverSig = ""
-        userDataStore.meta.serverPub = serviceCrypto.getPublicKeyHex()
-        userDataStore.encrypted = await serviceCrypto.encrypt(userData)
-        jsonString = JSON.stringify(userDataStore)
-        signature = await serviceCrypto.sign(jsonString)
-        userDataStore.meta.serverSig = signature
-        dataCache.save("userDataStore")
-    catch err then bs.report("@signAndSaveUserDataStore: "+err.message)
-    finally
-        saving = false
-        if delayedSave then signAndSaveUserDataStore()
-    return
 
 ############################################################
 export getNewUserObject = -> {
@@ -137,14 +88,14 @@ export addNewUser = (user) ->
     userData[newUserId] = user
     emailToUser[user.email] = user
 
-    signAndSaveUserDataStore()
+    seStore.save(STOREKEY)
     return
 
 ############################################################
 export setUserData = (userId, data) ->
     log "setUserData"
     userData[userId] = data
-    signAndSaveUserDataStore()
+    seStore.save(STOREKEY)
     return
 
 ############################################################
@@ -156,11 +107,8 @@ export removeUserData = (userId) ->
     delete userData[userId] 
     delete emailToUser[email]
 
-    signAndSaveUserDataStore()
+    seStore.save(STOREKEY)
     return
 
 ############################################################
-export save = ->
-    log "save"
-    signAndSaveUserDataStore()
-    return
+export save = -> seStore.save(STOREKEY)

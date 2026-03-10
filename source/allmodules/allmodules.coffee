@@ -9,6 +9,7 @@ import * as scicoremodule from "./scicoremodule.js"
 import * as scimodule from "./scimodule.js"
 import * as servicekeysmodule from "./servicekeysmodule.js"
 import * as sessionmodule from "./sessionmodule.js"
+import * as signencstoremodule from "./signencstoremodule.js"
 import * as startupmodule from "./startupmodule.js"
 import * as subscriptionmodule from "./subscriptionmodule.js"
 import * as userdatamodule from "./userdatamodule.js"
@@ -26,6 +27,7 @@ Modules = {
     scimodule,
     servicekeysmodule,
     sessionmodule,
+    signencstoremodule,
     startupmodule,
     subscriptionmodule,
     userdatamodule,
