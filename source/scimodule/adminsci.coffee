@@ -40,11 +40,20 @@ import * as usrM from "./usermanagementmodule.js"
 
 ############################################################ 
 #region Admin Management
+sciAdd("generateFirstOTC", adminM.generateFirstOTC, {
+    bodySizeLimit: 998,
+    argsSchema: {
+        name: NONEMPTYSTRING, 
+        pin: NONEMPTYSTRING 
+    }
+    resultSchema: NONEMPTYSTRING
+})
+
 sciAdd("generateAdminOTC", adminM.generateOTC, {
     bodySizeLimit: 998, 
     authOption: adminM.signatureAuth,
     argsSchema: {
-        adminName: STRINGORNOTHING, 
+        email: STRINGEMAIL, 
         pin: NONEMPTYSTRING,
         timestamp: NUMBER,
         publicKey: STRINGHEX64,

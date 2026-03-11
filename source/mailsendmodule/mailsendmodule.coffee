@@ -15,7 +15,6 @@ import * as cfg from "./configmodule.js"
 
 ############################################################
 buildTransporter = ->
-    
     transportOptions = {
         host: cfg.emailServer
         port: cfg.emailPort

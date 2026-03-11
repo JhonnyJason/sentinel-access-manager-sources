@@ -10,7 +10,6 @@ import { sciStartServer } from "./scicoremodule.js"
 
 ############################################################
 ## just parse our interfaces
-import "./samplesci.js"
 import "./adminsci.js"
 import "./usersci.js"
 

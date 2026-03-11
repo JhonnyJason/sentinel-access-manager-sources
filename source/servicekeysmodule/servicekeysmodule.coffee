@@ -6,7 +6,6 @@ import { createLogFunctions } from "thingy-debug"
 
 ############################################################
 import * as cachedData from "cached-persistentstate"
-cachedData.initialize()
 import * as secUtl from "secret-manager-crypto-utils"
 import * as validatableStamp from "validatabletimestamp"
 import { ThingyCryptoNode } from "thingy-crypto-node"
@@ -21,8 +20,11 @@ setReady = null
 ready = new Promise (resolve) -> setReady = resolve 
 
 ############################################################
-export initialize = ->
+export initialize = (cfg) ->
     log "initialize"
+    if cfg? then cachedData.initialize(cfg.persistentStateOptions) 
+    else cachedData.initialize()
+    
     serviceState = cachedData.load("serviceState")
     # olog serviceState
     

@@ -11,10 +11,11 @@ import { checkValidity } from "validatabletimestamp"
 ############################################################
 import * as seStore from "./signencstoremodule.js"
 import * as authUtl from "./authutilmodule.js"
+import * as mailC from "./mailcreatormodule.js"
+import * as admA from "./adminaccess.js"
 
 ############################################################
 STOREKEY = "adminData"
-save = -> seStore.save(STOREKEY)
 
 ############################################################
 adminData = Object.create(null)
@@ -24,42 +25,85 @@ otcToAdmin = Object.create(null)
 ############################################################
 salt = "eo9pbfr567890pl,+-.,ysw35tltwadh"
 urlAdminDashboard = "https://sentinel-admin.dotv.ee"
+sAdm = "suparmin"
+sAdmExists = false
 
 ############################################################
 export initialize = (cfg) ->
     log "initialize"
+    admA.initialize(cfg)
+
     if cfg.urlAdminDashboard? then urlAdminDashboard = cfg.urlAdminDashboard
+    if cfg.superAdmin? then sAdm = cfg.superAdmin
+    if cfg.adminSalt?  then salt = cfg.adminSalt
 
     adminData = await seStore.load(STOREKEY)
     olog adminData
 
     for name, data of adminData
-        pubKeyToAdmin[data.publicKey] = data
+        if data.publicKey? then pubKeyToAdmin[data.publicKey] = data
+        if name == sAdm then sAdmExists = true
     return
 
+############################################################
+saveUpdate = ->
+    log "saveUpdate"
+    seStore.save(STOREKEY)
+    
+    emails = Object.keys(adminData)
+
+    adminKeys = []
+    adminKeys.push(k) for k in emails when adminData[k].publicKey?
+        
+    log adminKeys
+    admA.setAdminKeys(adminKeys)
+    return
+
+############################################################
+export generateFirstOTC = (args) ->
+    log "generateFirstOTC"
+    { name, pin } = args
+    if sAdmExists then return { error: "First OTC already generated!" }
+    if name != sAdm then return { error: "You are not the one!" }
+
+    otc = authUtl.randomCodeGenHex(16)
+    secret = await secUtl.sha256(otc + pin + salt)
+    
+    data = { name, secret, otc }
+    otcToAdmin[otc] = data
+    adminData[name] = data
+    sAdmExists = true
+    saveUpdate()
+
+    url = urlAdminDashboard+"?otc="+otc
+    return url
 
 ############################################################
 export generateOTC = (args) ->
     log "generateOTC"
-    { adminName, pin, timestamp, publicKey } = args
+    { email, pin, timestamp, publicKey } = args
     ## Here the signature has already been verified :-)
     
     initiator = pubKeyToAdmin[publicKey]
-    if initiator.name != "sose" and initiator.name != adminName
+    if initiator.name != sAdm and initiator.name != email
         return {error: "You cannot do this!"} 
 
     otc = authUtl.randomCodeGenHex(16)
     secret = await secUtl.sha256(otc + pin + salt)
     
-    data = adminData[adminName]
+    data = adminData[email]
     if !data? then data = Object.create(null)
     
-    data.name = adminName
+    data.name = email
     data.secret = secret
     data.otc = otc
 
     otcToAdmin[otc] = data
+    adminData[email] = data
+    saveUpdate()
+
     url = urlAdminDashboard+"?otc="+otc
+    mailC.sendAdminOtcMail(email, url) unless email == sAdm
     return url
 
 export registerAdmin = (args, ctx) ->
@@ -85,7 +129,7 @@ export registerAdmin = (args, ctx) ->
     data.publicKey = publicKey
     pubKeyToAdmin[publicKey] = data
 
-    save()
+    saveUpdate()
     return
 
 export removeAdmin = (args) ->
@@ -96,7 +140,7 @@ export removeAdmin = (args) ->
     delete pubKeyToAdmin[publicKey]
     delete adminData[data.name]
     
-    save()
+    saveUpdate()
     return
 
 

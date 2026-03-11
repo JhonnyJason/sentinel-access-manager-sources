@@ -5,13 +5,14 @@ localCfg = Object.create(null)
 #region Read localCfg
 import fs from "fs"
 import path from "path"
+
 ############################################################
 import * as bs from "./bugsnitch.js"
 
 try
     ## local development
     # configPath = path.resolve(process.cwd(), "./.config.json")
-    configPath = path.resolve(process.cwd(), "../.config.json")
+    configPath = path.resolve(process.cwd(), ".config.json")
     localCfgString = fs.readFileSync(configPath, 'utf8')
     localCfg = JSON.parse(localCfgString)
 catch err
@@ -42,6 +43,10 @@ export snitchSocket = localCfg.snitchSocket || "/run/bugsnitch.sk"
 ############################################################
 export authCodeValidityMS = 7_200_000 # 2h
 export actionLiveTimeMS = 600_000 # 10m
+
+############################################################
+export superAdmin = "suparmin"
+export adminSalt = "eo9pbfr567890pl,+-.,ysw35tltwadh"
 
 ############################################################
 export persistentStateOptions = {

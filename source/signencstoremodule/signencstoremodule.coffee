@@ -9,9 +9,14 @@ import * as dataCache from "cached-persistentstate"
 import {
     STRINGHEX64, STRINGHEX128, STRINGHEX, createValidator
 } from "thingy-schema-validate"
-
+dataCache
 ############################################################
 import * as servKey from "./servicekeysmodule.js"
+import * as cfg from "./configmodule.js"
+
+############################################################
+dataCache.initialize(cfg.persistentStateOptions)
+
 
 ############################################################
 ## StoreObj Validator
@@ -45,7 +50,7 @@ loadAndVerifyStoreObj = (storeKey) ->
     
     if err 
         console.error("Loading store: #{storeKey} - empty or corrupted!")
-        return await saveNew(storeKey, Object.creae(null))
+        return await saveNew(storeKey, Object.create(null))
     else
         await signatureCheck(storeObj)
         dataMap[storeKey] = await servKey.decrypt(storeObj.encrypted)
@@ -71,7 +76,7 @@ signatureCheck = (storeObj) ->
 
 ############################################################
 export load = (storeKey) ->
-    log "load(#{storeKey})"
+    log "load (#{storeKey})"
     return dataMap[storeKey] if dataMap[storeKey]?
 
     try await loadAndVerifyStoreObj(storeKey)
@@ -84,7 +89,7 @@ export load = (storeKey) ->
 
 ############################################################
 export save = (storeKey) ->
-    log "save(#{storeKey})"
+    log "save (#{storeKey})"
     sS = saveState[storeKey]
     
     if sS.saving
@@ -105,7 +110,7 @@ export save = (storeKey) ->
         sigHex = await servKey.sign(jsonString)
         storeObj.meta.serverSig = sigHex
 
-        dataCache.save("userDataStore")
+        dataCache.save(storeKey)
     catch err then bs.report("storeObj save (#{storeKey}): "+err.message)
     finally
         sS.saving = false
@@ -114,7 +119,7 @@ export save = (storeKey) ->
 
 ############################################################
 export saveNew = (storeKey, data) ->
-    log "saveNew"
+    log "saveNew (#{storeKey})"
     sS = saveState[storeKey]
     if sS.saving then throw new Error("You shall not race-condition saveNew!")
     
@@ -133,7 +138,8 @@ export saveNew = (storeKey, data) ->
         sigHex = await servKey.sign(jsonString)
         storeObj.meta.serverSig = sigHex
 
-        dataCache.save("userDataStore", storeObj)
+        dataCache.save(storeKey, storeObj)
+        log "actually saved #{storeKey}!"
     catch err then bs.report("storeObj saveNew (#{storeKey}): "+err.message)
     finally
         sS.saving = false

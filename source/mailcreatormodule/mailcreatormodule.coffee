@@ -10,6 +10,34 @@ import M from "mustache"
 ############################################################
 import { sendMail } from "./mailsendmodule.js"
 
+
+############################################################
+#region Admin OTC Templates
+
+############################################################
+adminOtcEmailTextTemplate = """
+Guten Tag!
+
+Erstellen sie einen Neuen Admin Zugang mit diesem Link und ihrem PIN:
+{{{url}}}
+
+Ihr Sentinel
+"""
+
+############################################################
+adminOtcEmailHtmlTemplate = """
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Sentinel Registrierung</title></head><body style="color: #012; font-size: 12pt;">
+        
+<h1 style="font-size:16pt;">Guten Tag!</h1>
+<p>Erstellen sie einen Neuen Admin Zugang mit diesem Link und ihrem PIN:<br>
+<a href="{{{url}}}" target="_blank">{{{url}}}</a></p>
+<p>Ihr Sentinel Team</p> 
+
+</body></html>
+"""
+
+#endregion
+
 ############################################################
 #region Password Reset Templates
 
@@ -95,12 +123,21 @@ registrationEmailHtmlTemplate = """
 
 #endregion
 
+
 ############################################################
 class Mail 
     constructor: (@receiver, @subject, @textContent, @htmlContent) -> return
     send: => sendMail(this)
 
 ############################################################
+class AdminOtcMail extends Mail
+    constructor: (recvr, url) ->
+        subj = "Admin Account"
+        cObj = { url }
+        text = M.render(adminOtcEmailTextTemplate, cObj)
+        html = M.render(adminOtcEmailHtmlTemplate, cObj)
+        super(recvr, subj, text, html)
+
 class RegistrationMail extends Mail
     constructor: (recvr, link) ->
         subj = "Sentinel Registrierung"
@@ -125,17 +162,29 @@ class PasswordResetMail extends Mail
         super(recvr, subj, text, html)
 
 
+
 ############################################################
-export sendRegistrationMail = (email, link) ->
+export sendAdminOtcMail = (email, url) ->
     try
-        mail = new RegistrationMail(email, link)
+        mail = new RegistrationMail(email, url)
         await mail.send()
     catch err then console.error(err.message)
     return
 
+
+############################################################
 export sendPasswordResetMail = (email, link) ->
     try
         mail = new PasswordResetMail(email, link)
+        await mail.send()
+    catch err then console.error(err.message)
+    return
+
+
+############################################################
+export sendRegistrationMail = (email, link) ->
+    try
+        mail = new RegistrationMail(email, link)
         await mail.send()
     catch err then console.error(err.message)
     return
