@@ -33,7 +33,7 @@ export initialize = (cfg) ->
         serviceState.secretKeyHex = kp.secretKeyHex
         serviceState.publicKeyHex = kp.publicKeyHex
         cachedData.save("serviceState")
-    
+
     ## Use CryptoNode
     options = {
         secretKeyHex: serviceState.secretKeyHex
@@ -48,9 +48,10 @@ export initialize = (cfg) ->
 
 ############################################################
 export isNotGod = (keyHex) -> return keyHex != godKeyHex
+export isGod = (keyHex) -> return keyHex == gotKeyHex
 
 ############################################################
-export getPublicKeyHex = -> 
+export getPublicKeyHex = ->
     await ready
     return cryptoNode.id
 
@@ -64,12 +65,14 @@ export isValidSignature = (sigHex, content) ->
     await ready
     return await cryptoNode.verify(sigHex, content)
 
+export verify = isValidSignature
+
 ############################################################
 export getSignedNodeId = ->
     log "getSignedNodeId"
     await ready
     log "we are ready!"
-    result = Object.create(null)
+    result = Object.create(null) # from result = {}
     result.serverNodeId = serviceState.publicKeyHex
     result.timestamp = validatableStamp.create()
     content = JSON.stringify(result)
@@ -89,5 +92,3 @@ export encrypt = (data) ->
 export decrypt = (secretsObj) ->
     await ready
     return JSON.parse(await cryptoNode.decrypt(secretsObj))
-
-

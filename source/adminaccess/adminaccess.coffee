@@ -22,7 +22,6 @@ urlBackend = "http://localhost:3333"
 urlDatahub = "http://localhost:3344"
 nonce = Math.floor(Math.random() * 123456)
 
-
 ############################################################
 export initialize = (c) ->
     log "initialize"
