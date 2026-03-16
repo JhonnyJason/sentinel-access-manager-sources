@@ -6,8 +6,8 @@ modulesToDebug = {
     adminaccess: true
     # accountsmodule: true
     # usermanagementmodule: true
-    # scicoremodule: true
-    scimodule: true
+    scicoremodule: true
+    # scimodule: true
     sessionmodule: true
     # signencstoremodule: true
     # servicekeysmodule: true
