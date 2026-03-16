@@ -154,6 +154,8 @@ mainRequestHandler = (req, res) ->
 
     # olog {route, key2}
     info = routeInfoMap[key]
+    log Object.keys(routeInfoMap)
+    olog info
     if !info? then return respondWith404(res)
 
     bodySizeLimit = info.bodySizeLimit || globalBodySizeLimit
