@@ -11,8 +11,8 @@ import * as bs from "./bugsnitch.js"
 
 try
     ## local development
-    # configPath = path.resolve(process.cwd(), "./.config.json")
-    configPath = path.resolve(process.cwd(), ".config.json")
+    configPath = path.resolve(process.cwd(), "./.config.json")
+    # configPath = path.resolve(process.cwd(), ".config.json")
     localCfgString = fs.readFileSync(configPath, 'utf8')
     localCfg = JSON.parse(localCfgString)
 catch err
