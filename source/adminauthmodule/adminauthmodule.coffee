@@ -164,7 +164,7 @@ export signatureAuth = (req, ctx) ->
     ## should be validated as STRINGHEX64
     if !pubKeyToAdmin[pubKey]? then return "Not an Admin!"
 
-    content = ctx.body.replace('"signature":"'+sigHex+'"', '"signature":""')
+    content = ctx.bodyString.replace('"signature":"'+sigHex+'"', '"signature":""')
     isValid = await secUtl.verify(sigHex, pubKey, content)
     if !isValid then return "Invalid Signature!"
     return
