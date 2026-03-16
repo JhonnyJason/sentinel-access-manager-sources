@@ -124,6 +124,9 @@ export registerAdmin = (args) ->
     ## OTC only valid once -> on invalid pin we need a new otc
     delete otcToAdmin[otc]
     delete data.otc
+    
+    log data.secret
+    log secret
 
     if data.secret != secret then return "Registration Failed!"
     delete data.secret ## secret not needd anymore - success!!
