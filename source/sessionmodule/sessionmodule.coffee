@@ -10,7 +10,7 @@ import *  as stamp from "validatabletimestamp"
 ############################################################
 import * as bs from "./bugsnitch.js"
 ############################################################
-import * as keyM from "./servicekeysmodule.js"
+import * as servKey from "./servicekeysmodule.js"
 import * as auth from "./authutilmodule.js"
 
 ############################################################
@@ -122,15 +122,15 @@ unsetAccess = (authCode) ->
 ############################################################
 createBodyStringWithAuth = (args) ->
     argsString = JSON.stringify(args)
-    pubKey = await keyM.getPublicKeyHex()
-    
-    result = '{"auth":{"senderId":"'+pubKey+'",'
+    pubKeyHex = await servKey.getPublicKeyHex()
+
+    result = '{"auth":{"senderId":"'+pubKeyHex+'",'
     result += '"timestamp":'+stamp.create()+',"nonce":'+nonce+','
     result += '"signature":"'+noSigKey+'"},"args":'+argsString+'}'
     
     nonce++
 
-    sig = await keyM.sign(result)
+    sig = await servKey.sign(result)
     result = result.replace(noSigKey, sig)
     # resultObj = JSON.parse(result)
     # olog resultObj
