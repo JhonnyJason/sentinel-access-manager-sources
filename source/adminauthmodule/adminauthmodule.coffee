@@ -115,7 +115,7 @@ export registerAdmin = (args) ->
 
     body = JSON.stringify(args)
     content = body.replace('"signature":"'+signature+'"', '"signature":""')
-    isValid = await secUtl.verify(signature, pubKey, content)
+    isValid = await secUtl.verify(signature, publicKey, content)
     if !isValid then return "Invalid Signature!"
 
     data = otcToAdmin[otc]
@@ -124,7 +124,7 @@ export registerAdmin = (args) ->
     delete otcToAdmin[otc]
     delete data.otc
 
-    if data.secret != secret then "Registration Failed!"
+    if data.secret != secret then return "Registration Failed!"
     delete data.secret ## secret not needd anymore - success!!
 
     data.publicKey = publicKey
