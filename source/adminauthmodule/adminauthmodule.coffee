@@ -106,14 +106,15 @@ export generateOTC = (args) ->
     mailC.sendAdminOtcMail(email, url) unless email == sAdm
     return url
 
-export registerAdmin = (args, ctx) ->
+export registerAdmin = (args) ->
     log "registerAdmin"
     { publicKey, otc, secret, timestamp, signature } = args
     ## Here the validity of the registration needs to be verified
     err = checkValidity(timestamp)
     if err then return "Invalid Timestamp!"
 
-    content = ctx.body.replace('"signature":"'+signature+'"', '"signature":""')
+    body = JSON.stringify(args)
+    content = body.replace('"signature":"'+signature+'"', '"signature":""')
     isValid = await secUtl.verify(signature, pubKey, content)
     if !isValid then return "Invalid Signature!"
 
