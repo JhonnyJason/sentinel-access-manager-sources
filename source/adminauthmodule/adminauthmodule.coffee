@@ -54,7 +54,8 @@ saveUpdate = ->
     emails = Object.keys(adminData)
 
     adminKeys = []
-    adminKeys.push(k) for k in emails when adminData[k].publicKey?
+    for k in emails when adminData[k].publicKey?
+        adminKeys.push(adminData[k].publicKey) 
         
     log adminKeys
     admA.setAdminKeys(adminKeys)
