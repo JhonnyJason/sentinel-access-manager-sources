@@ -21,7 +21,7 @@ import * as authUtl from "./authutilmodule.js"
 
 ############################################################
 #region Local Variables
-STOREKEY = "userData"
+STOREKEY = "userDataStore"
 
 ############################################################
 userData = Object.create(null)
