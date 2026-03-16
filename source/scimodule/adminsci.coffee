@@ -77,7 +77,8 @@ sciAdd("removeAdminAccess", adminM.removeAdmin, {
     bodySizeLimit: 998, 
     authOption: adminM.signatureAuth,
     argsSchema: {
-        action: "removeAccess"
+        # action: "removeAccess"
+        action: STRING
         timestamp: NUMBER,
         publicKey: STRINGHEX64,
         signature: STRINGHEX128
