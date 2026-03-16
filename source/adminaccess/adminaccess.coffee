@@ -52,6 +52,7 @@ sendPost = (url, bodyString) ->
 createBodyStringWithAuth = (args) ->
     argsString = JSON.stringify(args)
     pubKeyHex = await servKey.getPublicKeyHex()
+    
     result = '{"auth":{"senderId":"'+pubKeyHex+'",'
     result += '"timestamp":'+stamp.create()+',"nonce":'+nonce+','
     result += '"signature":"'+noSigKey+'"},"args":'+argsString+'}'
