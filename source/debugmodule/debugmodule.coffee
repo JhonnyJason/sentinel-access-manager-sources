@@ -12,7 +12,7 @@ modulesToDebug = {
     # signencstoremodule: true
     # servicekeysmodule: true
     # startupmodule: true
-    # userdatamodule: true
+    userdatamodule: true
 }
 
 addModulesToDebug(modulesToDebug)
