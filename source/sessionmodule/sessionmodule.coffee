@@ -122,7 +122,9 @@ unsetAccess = (authCode) ->
 ############################################################
 createBodyStringWithAuth = (args) ->
     argsString = JSON.stringify(args)
-    result = '{"auth":{"senderId":"'+keyM.getPublicKeyHex()+'",'
+    pubKey = await keyM.getPublicKeyHex()
+    
+    result = '{"auth":{"senderId":"'+pubKey+'",'
     result += '"timestamp":'+stamp.create()+',"nonce":'+nonce+','
     result += '"signature":"'+noSigKey+'"},"args":'+argsString+'}'
     
