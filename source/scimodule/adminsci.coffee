@@ -65,7 +65,7 @@ sciAdd("generateAdminOTC", adminM.generateOTC, {
 sciAdd("registerAdmin", adminM.registerAdmin, {
     bodySizeLimit: 998, 
     argsSchema: {
-        otc: STRINGHEX64, 
+        otc: STRINGHEX32, 
         secret: STRINGHEX64,
         timestamp: NUMBER,
         publicKey: STRINGHEX64,
