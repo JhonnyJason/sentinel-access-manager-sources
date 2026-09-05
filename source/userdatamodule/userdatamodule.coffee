@@ -10,7 +10,7 @@ import { createLogFunctions } from "thingy-debug"
 ############################################################
 import {
     STRINGEMAIL, STRINGHEX64, STRINGHEX64ORNOTHING, NUMBER, 
-    BOOLEAN, createValidator
+    BOOLEAN, OBJECT, createValidator
 } from "thingy-schema-validate"
 
 ############################################################
@@ -29,13 +29,12 @@ emailToUser = Object.create(null)
 
 ############################################################
 ## UserData Validator
-validateUserObj = createValidator({
+validateNewUserObj = createValidator({
     email: STRINGEMAIL
     passwordSHH: STRINGHEX64
     xCode: STRINGHEX64ORNOTHING
-    subscribedUntil: NUMBER
-    isTester: BOOLEAN
     lastInteraction: NUMBER
+    details: OBJECT
 })
 
 #endregion
@@ -56,9 +55,8 @@ export initialize = ->
 export getNewUserObject = -> {
     email: ""
     passwordSHH: ""
-    subscribedUntil: 0
-    isTester: false
-    lastInteraction: 0
+    lastInteraction: 0,
+    details: {}
 }
 
 ############################################################
@@ -76,7 +74,7 @@ export getUserByEmail = (email) ->
 ############################################################
 export addNewUser = (user) ->
     log "addNewUser"
-    err = validateUserObj(user)
+    err = validateNewUserObj(user)
     if err
         console.error("addNewUser: invalid user object! (#{err})")
         return "deaddeaddeaddeaddeaddeaddeaddead"
@@ -89,7 +87,7 @@ export addNewUser = (user) ->
     emailToUser[user.email] = user
 
     seStore.save(STOREKEY)
-    return
+    return newUserId
 
 ############################################################
 export setUserData = (userId, data) ->

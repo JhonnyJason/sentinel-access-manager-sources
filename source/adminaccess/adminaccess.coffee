@@ -20,6 +20,7 @@ noSigKey = '"\'\\'
 ############################################################
 urlBackend = "http://localhost:3333"
 urlDatahub = "http://localhost:3344"
+urlStripe = "http://localhost:3366"
 nonce = Math.floor(Math.random() * 123456)
 
 ############################################################
@@ -80,6 +81,11 @@ export setAdminKeys = (adminKeys) ->
     url = urlDatahub+'/setAdminKeys'
     try await sendPost(url, bodyString)
     catch err then bs.report("@adminaccess.setAdminKeys sendPost to Datahub failed: "+err.message)
+
+    url = urlStripe+'/setAdminKeys'
+    try await sendPost(url, bodyString)
+    catch err then bs.report("@adminaccess.setAdminKeys sendPost to StripeService failed: "+err.message)
+
     return
 
 

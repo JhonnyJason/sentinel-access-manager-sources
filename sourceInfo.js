@@ -4,7 +4,7 @@ module.exports = {
             "cached-persistentstate": "^0.0.1",
             "memory-decay": "^0.0.3",
             "mustache": "^4.2.0",
-            "nodemailer": "^7.0.10",
+            "nodemailer": "^9.1.1",
             "secret-manager-crypto-utils": "^0.3.1",
             "thingy-byte-utils": "^0.0.8",
             "thingy-crypto-node": "^0.0.2",

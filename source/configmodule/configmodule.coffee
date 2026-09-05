@@ -23,8 +23,6 @@ catch err
 #endregion
 
 ############################################################
-export paypalId = localCfg.paypalId || "none"
-export paypalKey = localCfg.paypalKey || "none"
 export emailPassword = localCfg.emailPassword || "none"
 export emailUsername = localCfg.emailUsername || "none"
 export emailServer = localCfg.emailServer || "none"
@@ -34,6 +32,8 @@ export urlAdminDashboard = localCfg.urlAdminDashboard || "https://sentinel-admin
 export urlSentinelPassword = localCfg.urlSentinelPassword || "https://sentinel-password-dev.dotv.ee"
 export urlSentinelBackend = localCfg.urlSentinelBackend || "https://sentinel-backend.dotv.ee"
 export urlSentinelDatahub = localCfg.urlSentinelDatahub || "https://sentinel-datahub.dotv.ee"
+export urlStripeService = localCfg.urlStripeService || "https://sentinel-datahub.dotv.ee"
+
 export snitchSocket = localCfg.snitchSocket || "/run/bugsnitch.sk"
 
 ## local development
@@ -50,6 +50,6 @@ export adminSalt = "eo9pbfr567890pl,+-.,ysw35tltwadh"
 
 ############################################################
 export persistentStateOptions = {
-    basePath: "../state"
+    basePath: "./state"
     maxCacheSize: 128
 }

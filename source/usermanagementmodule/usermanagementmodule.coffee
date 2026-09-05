@@ -24,9 +24,8 @@ export getUserList = ->
         list.push({
             userId: id
             email: user.email
-            subscribedUntil: user.subscribedUntil
-            isTester: user.isTester,
-            lastInteraction: user.lastInteraction
+            lastInteraction: user.lastInteraction,
+            details: user.details
         })
     return list
 
@@ -39,9 +38,8 @@ export getUser = (userId) ->
     return {
         userId: userId
         email: user.email
-        subscribedUntil: user.subscribedUntil
-        isTester: user.isTester 
-        lastInteraction: user.lastInteraction
+        lastInteraction: user.lastInteraction,
+        details: user.details
     }
 
 
@@ -50,9 +48,21 @@ export updateUser = (args) ->
     log "updateUser"
     user = uData.getUserById(args.userId)
     if !user? then return "User does not exist!"
+
+    ## random repair...
+    if !user.details? then user.details = Object.create(null)
+    if user.isTester 
+        user.details.isTester = user.isTester
+        delete user.isTester
+    if user.subscribedUntil
+        user.details.subscribedUntil = user.subscribedUntil
+        delete user.subscribedUntil
+
+    if args.subscribedUntil? then user.details.subscribedUntil = args.subscribedUntil
+    if args.isTester? then user.details.isTester = args.isTester
+
+
     if args.email? then user.email = args.email
-    if args.subscribedUntil? then user.subscribedUntil = args.subscribedUntil
-    if args.isTester? then user.isTester = args.isTester
     uData.setUserData(args.userId, user)
     return
 
@@ -60,9 +70,10 @@ export updateUser = (args) ->
 export createUser = (args) ->
     log "createUser"
     user = uData.getNewUserObject()
+    user.details.subscribedUntil = args.subscribedUntil
+    user.details.isTester = args.isTester
+
     user.email = args.email
-    user.subscribedUntil = args.subscribedUntil || 0
-    user.isTester = args.isTester || false
     user.passwordSHH = await authUtl.getPasswordHash(args.passwordSH)
     userId = uData.addNewUser(user)
     return userId

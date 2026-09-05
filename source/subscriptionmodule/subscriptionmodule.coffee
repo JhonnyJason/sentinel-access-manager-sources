@@ -6,8 +6,6 @@ import { createLogFunctions } from "thingy-debug"
 
 ############################################################
 #region Test Data:
-sandboxPaypalId = "AZvvkfAsObhFNG7g1G5y6RLJZN0mG115RtHkb6Nu7vQVqV_ZeN2YV5FcHjhH95iUeMg9FvTLHPs-InJL"
-sandboxPaypalKey = "EDVVe6Lf9h_Z5Re9iEUPofN1OFYZdiI2fVh8rouRHU2XPc6IwCOZHdnkRMHUhKFikmYWKqbFHtKG_bBN"
 
 successfullCard = {
     cardNumber: "4032037389661931"
