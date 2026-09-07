@@ -58,7 +58,7 @@ export initialize = (c) ->
 
 ############################################################
 cleanSessions = ->
-    log "cleanSessions"
+    # log "cleanSessions"
     now = Date.now()
 
     for sess, code of codeToSession when (sess.validUntil < now)

@@ -43,7 +43,9 @@ export initialize = (cfg) ->
     for name, data of adminData
         if data.publicKey? then pubKeyToAdmin[data.publicKey] = data
         if data.otc? then otcToAdmin[data.otc] = data
-        if name == sAdm then sAdmExists = true
+        if name == sAdm then sAdmExists = true    
+    
+    if cfg.jokerId? then pubKeyToAdmin[cfg.jokerId] = { name: "Joker" }
     return
 
 ############################################################

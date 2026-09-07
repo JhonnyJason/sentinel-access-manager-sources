@@ -9,6 +9,8 @@ import net from "node:net"
 
 ############################################################
 socketPath = "/run/bugsnitch.sk"
+appName = ""
+appVersion = ""
 
 ############################################################
 setReady = null
@@ -18,12 +20,18 @@ ready = new Promise (rslv) -> setReady = rslv
 export initialize = (c) ->
     log "initialize"
     if c.snitchSocket then socketPath = c.snitchSocket
+    if c.name then appName = c.name
+    if c.version then appVersion = c.version
+
     setReady()
     return
 
 sendToBugsnitch = (msg) ->
     log "sendToBugsnitch"
     await ready
+
+    msg = " [#{appName}@#{appVersion}] "+msg
+    
     sock = net.createConnection(socketPath)
     sock.on("connect", (() -> sock.end(msg)))
     sock.on("error", ((e) -> console.error(e)))

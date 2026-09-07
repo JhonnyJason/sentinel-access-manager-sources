@@ -21,6 +21,7 @@ noSigKey = '"\'\\'
 urlBackend = "http://localhost:3333"
 urlDatahub = "http://localhost:3344"
 urlStripe = "http://localhost:3366"
+
 nonce = Math.floor(Math.random() * 123456)
 
 ############################################################
@@ -28,6 +29,8 @@ export initialize = (c) ->
     log "initialize"
     if c.urlSentinelBackend? then urlBackend = c.urlSentinelBackend
     if c.urlSentinelDatahub? then urlDatahub = c.urlSentinelDatahub
+    if c.urlStripeService? then urlStripe = c.urlStripeService
+    
     return
 
 ############################################################
